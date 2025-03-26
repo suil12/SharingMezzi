@@ -1,6 +1,15 @@
 # AA24-25-Gruppo06
 
+Componenti del gruppo:
 
+Ayoub Mahfoud 20044074
+
+Souhail Nmili 20044037
+
+Mathias Costantino 20043922
+
+Quello che segue dovrà essere sostituito con una sintetica descrizione del vostro progetto
+e l'indicazione di come è strutturato il repository (dove si trova la documentazione, dove il codice, dove le istruzioni per avviare i diversi componenti del vostro sistema) 
 
 ## Getting started
 
