@@ -1,4 +1,4 @@
-# AA24-25-Gruppo06.
+# AA24-25-Gruppo06
 
 Componenti del gruppo:
 
