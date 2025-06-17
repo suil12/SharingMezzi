@@ -63,7 +63,7 @@ SharingMezziFinal/
 cd SharingMezzi.Api
 dotnet run
 ```
-- API REST: `https://localhost:500`
+- API REST: `https://localhost:5000`
 - Admin Dashboard: `https://localhost:5000/admin`
 
 

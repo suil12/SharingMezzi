@@ -83,6 +83,22 @@ namespace SharingMezzi.Client.Console
             System.Console.Clear();
             System.Console.WriteLine($"=== BENVENUTO {currentUser?.Nome?.ToUpper()} === Credito: €{currentUser?.Credito:F2}");
             System.Console.WriteLine();
+
+            // Verifica se l'utente è un amministratore
+            if (currentUser?.Ruolo == "Amministratore")
+            {
+                await ShowAdminMenu();
+            }
+            else
+            {
+                await ShowUserMenu();
+            }
+        }
+
+        static async Task ShowUserMenu()
+        {
+            System.Console.WriteLine("=== MENU UTENTE ===");
+            System.Console.WriteLine();
             System.Console.WriteLine("1. Visualizza mezzi disponibili");
             System.Console.WriteLine("2. Visualizza parcheggi");
             System.Console.WriteLine("3. Inizia corsa");
@@ -128,6 +144,76 @@ namespace SharingMezzi.Client.Console
                         break;
                     case "9":
                         await ProfiloUtente();
+                        break;
+                    case "0":
+                        await Logout();
+                        break;
+                    default:
+                        System.Console.WriteLine("Opzione non valida");
+                        await WaitKey();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+                await WaitKey();
+            }
+        }
+
+        static async Task ShowAdminMenu()
+        {
+            System.Console.WriteLine("=== MENU AMMINISTRATORE ===");
+            System.Console.WriteLine();
+            System.Console.WriteLine("1. Visualizza tutti gli utenti");
+            System.Console.WriteLine("2. Gestisci utenti sospesi");
+            System.Console.WriteLine("3. Crea nuovo parcheggio");
+            System.Console.WriteLine("4. Crea nuovo mezzo");
+            System.Console.WriteLine("5. Gestione manutenzione mezzi");
+            System.Console.WriteLine("6. Ripara mezzi in manutenzione");
+            System.Console.WriteLine("7. Visualizza mezzi disponibili");
+            System.Console.WriteLine("8. Visualizza parcheggi");
+            System.Console.WriteLine("9. Status sistema");
+            System.Console.WriteLine("10. Statistiche admin");
+            System.Console.WriteLine("0. Logout");
+            System.Console.WriteLine();
+            System.Console.Write("Scegli un'opzione: ");
+
+            var choice = System.Console.ReadLine();
+
+            try
+            {
+                switch (choice)
+                {
+                    case "1":
+                        await AdminListAllUsers();
+                        break;
+                    case "2":
+                        await AdminManageSuspendedUsers();
+                        break;
+                    case "3":
+                        await AdminCreateParking();
+                        break;
+                    case "4":
+                        await AdminCreateVehicle();
+                        break;
+                    case "5":
+                        await AdminManageVehicleMaintenance();
+                        break;
+                    case "6":
+                        await AdminRepairVehicles();
+                        break;
+                    case "7":
+                        await ListMezziDisponibili();
+                        break;
+                    case "8":
+                        await ListParcheggi();
+                        break;
+                    case "9":
+                        await StatusSistema();
+                        break;
+                    case "10":
+                        await AdminStatistics();
                         break;
                     case "0":
                         await Logout();
@@ -808,12 +894,451 @@ namespace SharingMezzi.Client.Console
             await WaitKey();
         }
 
+        // === ADMIN METHODS ===
+        static async Task AdminListAllUsers()
+        {
+            await AdminListAllUsersWithSuspend();
+        }
+
+        static async Task AdminListAllUsersWithSuspend()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== TUTTI GLI UTENTI ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                var response = await httpClient.GetAsync($"{API_BASE}/admin/users");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var utenti = JsonSerializer.Deserialize<UtenteDto[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (utenti != null && utenti.Length > 0)
+                    {
+                        foreach (var utente in utenti)
+                        {
+                            System.Console.WriteLine($"ID: {utente.Id} | {utente.Nome} {utente.Cognome}");
+                            System.Console.WriteLine($"Email: {utente.Email} | Ruolo: {utente.Ruolo}");
+                            System.Console.WriteLine($"Stato: {utente.Stato} | Credito: €{utente.Credito:F2}");
+                            if (utente.DataSospensione != null)
+                            {
+                                System.Console.WriteLine($"Sospeso dal: {utente.DataSospensione:dd/MM/yyyy} - Motivo: {utente.MotivoSospensione}");
+                            }
+                            System.Console.WriteLine("───────────────────────────");
+                        }
+                    }
+                    else
+                    {
+                        System.Console.WriteLine("Nessun utente trovato");
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine($"Errore nel recupero utenti: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task AdminManageSuspendedUsers()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== GESTIONE UTENTI SOSPESI ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                var response = await httpClient.GetAsync($"{API_BASE}/admin/users/suspended");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var utentiSospesi = JsonSerializer.Deserialize<UtenteDto[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (utentiSospesi != null && utentiSospesi.Length > 0)
+                    {
+                        System.Console.WriteLine("Utenti attualmente sospesi:");
+                        System.Console.WriteLine();
+
+                        foreach (var utente in utentiSospesi)
+                        {
+                            System.Console.WriteLine($"ID: {utente.Id} | {utente.Nome} {utente.Cognome}");
+                            System.Console.WriteLine($"Email: {utente.Email}");
+                            System.Console.WriteLine($"Sospeso dal: {utente.DataSospensione:dd/MM/yyyy}");
+                            System.Console.WriteLine($"Motivo: {utente.MotivoSospensione}");
+                            System.Console.WriteLine("───────────────────────────");
+                        }
+
+                        System.Console.WriteLine();
+                        System.Console.Write("Inserisci ID utente da sbloccare (0 per tornare al menu): ");
+                        if (int.TryParse(System.Console.ReadLine(), out int userId) && userId > 0)
+                        {
+                            await AdminUnblockUser(userId);
+                        }
+                    }
+                    else
+                    {
+                        System.Console.WriteLine("✅ Nessun utente sospeso al momento");
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine($"Errore nel recupero utenti sospesi: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task AdminUnblockUser(int userId)
+        {
+            System.Console.Write("Inserisci note per lo sblocco: ");
+            var note = System.Console.ReadLine() ?? "";
+
+            var request = new { UtenteId = userId, Note = note };
+            var json = JsonSerializer.Serialize(request);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            try
+            {
+                var response = await httpClient.PostAsync($"{API_BASE}/admin/users/{userId}/unblock", content);
+                if (response.IsSuccessStatusCode)
+                {
+                    System.Console.WriteLine("✅ Utente sbloccato con successo!");
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    System.Console.WriteLine($"❌ Errore nello sblocco: {errorContent}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+        }
+
+        static async Task AdminCreateParking()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== CREA NUOVO PARCHEGGIO ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                System.Console.Write("Nome parcheggio: ");
+                var nome = System.Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(nome))
+                {
+                    System.Console.WriteLine("Nome obbligatorio!");
+                    await WaitKey();
+                    return;
+                }
+
+                System.Console.Write("Indirizzo: ");
+                var indirizzo = System.Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(indirizzo))
+                {
+                    System.Console.WriteLine("Indirizzo obbligatorio!");
+                    await WaitKey();
+                    return;
+                }
+
+                System.Console.Write("Capienza (numero di posti): ");
+                if (!int.TryParse(System.Console.ReadLine(), out int capienza) || capienza <= 0)
+                {
+                    System.Console.WriteLine("Capienza non valida!");
+                    await WaitKey();
+                    return;
+                }
+
+                var request = new { Nome = nome, Indirizzo = indirizzo, Capienza = capienza };
+                var json = JsonSerializer.Serialize(request);
+                var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PostAsync($"{API_BASE}/admin/parking", content);
+                if (response.IsSuccessStatusCode)
+                {
+                    System.Console.WriteLine("✅ Parcheggio creato con successo!");
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    System.Console.WriteLine($"❌ Errore nella creazione: {errorContent}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task AdminCreateVehicle()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== CREA NUOVO MEZZO ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                System.Console.Write("Modello del mezzo: ");
+                var modello = System.Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(modello))
+                {
+                    System.Console.WriteLine("Modello obbligatorio!");
+                    await WaitKey();
+                    return;
+                }
+
+                System.Console.WriteLine("Tipo di mezzo:");
+                System.Console.WriteLine("1. BiciMuscolare");
+                System.Console.WriteLine("2. BiciElettrica");
+                System.Console.WriteLine("3. Monopattino");
+                System.Console.Write("Scegli (1-3): ");
+                
+                var tipoChoice = System.Console.ReadLine();
+                string tipo;
+                bool isElettrico;
+                
+                switch (tipoChoice)
+                {
+                    case "1":
+                        tipo = "BiciMuscolare";
+                        isElettrico = false;
+                        break;
+                    case "2":
+                        tipo = "BiciElettrica";
+                        isElettrico = true;
+                        break;
+                    case "3":
+                        tipo = "Monopattino";
+                        isElettrico = true;
+                        break;
+                    default:
+                        System.Console.WriteLine("Scelta non valida!");
+                        await WaitKey();
+                        return;
+                }
+
+                System.Console.Write("Tariffa per minuto (€): ");
+                if (!decimal.TryParse(System.Console.ReadLine(), out decimal tariffaPerMinuto) || tariffaPerMinuto <= 0)
+                {
+                    System.Console.WriteLine("Tariffa non valida!");
+                    await WaitKey();
+                    return;
+                }
+
+                System.Console.Write("Tariffa fissa di attivazione (€, default 1.00): ");
+                var tariffaInput = System.Console.ReadLine();
+                decimal tariffaFissa = 1.00m;
+                if (!string.IsNullOrWhiteSpace(tariffaInput))
+                {
+                    if (!decimal.TryParse(tariffaInput, out tariffaFissa) || tariffaFissa < 0)
+                    {
+                        System.Console.WriteLine("Tariffa fissa non valida, usando default 1.00€");
+                        tariffaFissa = 1.00m;
+                    }
+                }
+
+                System.Console.Write("ID Parcheggio (opzionale): ");
+                int? parcheggioId = null;
+                var parcheggioInput = System.Console.ReadLine();
+                if (!string.IsNullOrWhiteSpace(parcheggioInput) && int.TryParse(parcheggioInput, out int pId))
+                {
+                    parcheggioId = pId;
+                }
+
+                var request = new 
+                { 
+                    Modello = modello, 
+                    Tipo = tipo, 
+                    IsElettrico = isElettrico, 
+                    TariffaPerMinuto = tariffaPerMinuto,
+                    TariffaFissa = tariffaFissa,
+                    ParcheggioId = parcheggioId 
+                };
+                var json = JsonSerializer.Serialize(request);
+                var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PostAsync($"{API_BASE}/admin/vehicles", content);
+                if (response.IsSuccessStatusCode)
+                {
+                    System.Console.WriteLine("✅ Mezzo creato con successo!");
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    System.Console.WriteLine($"❌ Errore nella creazione: {errorContent}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task AdminRepairVehicles()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== RIPARA MEZZI IN MANUTENZIONE ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                // Prima mostra i mezzi in manutenzione
+                var mezziResponse = await httpClient.GetAsync($"{API_BASE}/mezzi");
+                if (mezziResponse.IsSuccessStatusCode)
+                {
+                    var mezziJson = await mezziResponse.Content.ReadAsStringAsync();
+                    var mezzi = JsonSerializer.Deserialize<MezzoDto[]>(mezziJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    
+                    var mezziInManutenzione = mezzi?.Where(m => m.Stato == "Manutenzione").ToArray();
+                    
+                    if (mezziInManutenzione != null && mezziInManutenzione.Length > 0)
+                    {
+                        System.Console.WriteLine("Mezzi attualmente in manutenzione:");
+                        System.Console.WriteLine();
+
+                        foreach (var mezzo in mezziInManutenzione)
+                        {
+                            System.Console.WriteLine($"ID: {mezzo.Id} | {mezzo.Modello} ({mezzo.Tipo})");
+                            System.Console.WriteLine($"Ultima manutenzione: {mezzo.UltimaManutenzione?.ToString("dd/MM/yyyy") ?? "Mai"}");
+                            System.Console.WriteLine("───────────────────────────");
+                        }
+
+                        System.Console.WriteLine();
+                        System.Console.Write("Inserisci ID mezzo da riparare (0 per tornare al menu): ");
+                        if (int.TryParse(System.Console.ReadLine(), out int mezzoId) && mezzoId > 0)
+                        {
+                            System.Console.Write("Note riparazione: ");
+                            var noteRiparazione = System.Console.ReadLine() ?? "";
+
+                            var request = new { MezzoId = mezzoId, NoteRiparazione = noteRiparazione };
+                            var json = JsonSerializer.Serialize(request);
+                            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                            var response = await httpClient.PostAsync($"{API_BASE}/admin/vehicles/{mezzoId}/repair", content);
+                            if (response.IsSuccessStatusCode)
+                            {
+                                System.Console.WriteLine("✅ Mezzo riparato con successo!");
+                            }
+                            else
+                            {
+                                var errorContent = await response.Content.ReadAsStringAsync();
+                                System.Console.WriteLine($"❌ Errore nella riparazione: {errorContent}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        System.Console.WriteLine("✅ Nessun mezzo attualmente in manutenzione");
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine($"Errore nel recupero mezzi: {mezziResponse.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task AdminStatistics()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== STATISTICHE AMMINISTRATORE ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                var response = await httpClient.GetAsync($"{API_BASE}/admin/statistics");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var stats = JsonSerializer.Deserialize<JsonElement>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    System.Console.WriteLine("📊 === STATISTICHE SISTEMA ===");
+                    System.Console.WriteLine();
+                    System.Console.WriteLine($"🚲 Mezzi totali: {stats.GetProperty("totalMezzi").GetInt32()}");
+                    System.Console.WriteLine($"✅ Mezzi disponibili: {stats.GetProperty("mezziDisponibili").GetInt32()}");
+                    System.Console.WriteLine($"🔄 Mezzi in uso: {stats.GetProperty("mezziInUso").GetInt32()}");
+                    System.Console.WriteLine($"🔧 Mezzi in manutenzione: {stats.GetProperty("mezziManutenzione").GetInt32()}");
+                    System.Console.WriteLine($"🅿️ Parcheggi totali: {stats.GetProperty("totalParcheggi").GetInt32()}");
+                    System.Console.WriteLine($"🔋 Mezzi con batteria bassa: {stats.GetProperty("batteriaBassa").GetInt32()}");
+                    System.Console.WriteLine($"🏃 Corse attive: {stats.GetProperty("corseAttive").GetInt32()}");
+                    System.Console.WriteLine();
+                    System.Console.WriteLine($"⏰ Ultimo aggiornamento: {DateTime.Parse(stats.GetProperty("ultimoAggiornamento").GetString()!):dd/MM/yyyy HH:mm:ss}");
+                }
+                else
+                {
+                    System.Console.WriteLine($"Errore nel recupero statistiche: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task AdminSuspendUser(int userId)
+        {
+            System.Console.Write("Inserisci motivo della sospensione: ");
+            var motivo = System.Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(motivo))
+            {
+                System.Console.WriteLine("Motivo obbligatorio!");
+                return;
+            }
+
+            var request = new { UtenteId = userId, Motivo = motivo };
+            var json = JsonSerializer.Serialize(request);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            try
+            {
+                var response = await httpClient.PostAsync($"{API_BASE}/admin/users/{userId}/suspend", content);
+                if (response.IsSuccessStatusCode)
+                {
+                    System.Console.WriteLine("✅ Utente sospeso con successo!");
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    System.Console.WriteLine($"❌ Errore nella sospensione: {errorContent}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+        }
+
         // === HELPER METHODS ===
-        static async Task WaitKey()
+        static Task WaitKey()
         {
             System.Console.WriteLine();
             System.Console.WriteLine("Premi un tasto per continuare...");
             System.Console.ReadKey();
+            return Task.CompletedTask;
         }
 
         static async Task AggiornaCreditoUtente()
@@ -839,6 +1364,216 @@ namespace SharingMezzi.Client.Console
             {
                 // Ignora errori nell'aggiornamento del credito
             }
+        }
+
+        // === MAINTENANCE METHODS ===
+        static async Task AdminManageVehicleMaintenance()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== GESTIONE MANUTENZIONE MEZZI ===");
+            System.Console.WriteLine();
+            System.Console.WriteLine("1. Visualizza mezzi disponibili");
+            System.Console.WriteLine("2. Metti mezzo in manutenzione");
+            System.Console.WriteLine("3. Visualizza mezzi in manutenzione");
+            System.Console.WriteLine("0. Torna al menu admin");
+            System.Console.WriteLine();
+            System.Console.Write("Scegli un'opzione: ");
+
+            var choice = System.Console.ReadLine();
+
+            try
+            {
+                switch (choice)
+                {
+                    case "1":
+                        await ShowAvailableVehiclesForMaintenance();
+                        break;
+                    case "2":
+                        await SetVehicleInMaintenance();
+                        break;
+                    case "3":
+                        await ShowVehiclesInMaintenance();
+                        break;
+                    case "0":
+                        return;
+                    default:
+                        System.Console.WriteLine("Opzione non valida");
+                        await WaitKey();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+                await WaitKey();
+            }
+        }
+
+        static async Task ShowAvailableVehiclesForMaintenance()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== MEZZI DISPONIBILI ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                var response = await httpClient.GetAsync($"{API_BASE}/mezzi");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var mezzi = JsonSerializer.Deserialize<MezzoDto[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    
+                    var mezziDisponibili = mezzi?.Where(m => m.Stato == "Disponibile").ToArray();
+                    
+                    if (mezziDisponibili != null && mezziDisponibili.Length > 0)
+                    {
+                        System.Console.WriteLine("Mezzi disponibili che possono essere messi in manutenzione:");
+                        System.Console.WriteLine();
+
+                        foreach (var mezzo in mezziDisponibili)
+                        {
+                            System.Console.WriteLine($"ID: {mezzo.Id} | {mezzo.Modello} ({mezzo.Tipo})");
+                            System.Console.WriteLine($"Stato: {mezzo.Stato} | Batteria: {mezzo.LivelloBatteria?.ToString() ?? "N/A"}%");
+                            System.Console.WriteLine($"Ultima manutenzione: {mezzo.UltimaManutenzione?.ToString("dd/MM/yyyy") ?? "Mai"}");
+                            System.Console.WriteLine("───────────────────────────");
+                        }
+                    }
+                    else
+                    {
+                        System.Console.WriteLine("✅ Nessun mezzo disponibile");
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine($"Errore nel recupero mezzi: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task SetVehicleInMaintenance()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== METTI MEZZO IN MANUTENZIONE ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                // Prima mostra i mezzi disponibili
+                var response = await httpClient.GetAsync($"{API_BASE}/mezzi");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var mezzi = JsonSerializer.Deserialize<MezzoDto[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    
+                    var mezziDisponibili = mezzi?.Where(m => m.Stato == "Disponibile").ToArray();
+                    
+                    if (mezziDisponibili != null && mezziDisponibili.Length > 0)
+                    {
+                        System.Console.WriteLine("Mezzi disponibili:");
+                        System.Console.WriteLine();
+
+                        foreach (var mezzo in mezziDisponibili)
+                        {
+                            System.Console.WriteLine($"ID: {mezzo.Id} | {mezzo.Modello} ({mezzo.Tipo})");
+                            System.Console.WriteLine($"Ultima manutenzione: {mezzo.UltimaManutenzione?.ToString("dd/MM/yyyy") ?? "Mai"}");
+                            System.Console.WriteLine("───────────────────────────");
+                        }
+
+                        System.Console.WriteLine();
+                        System.Console.Write("Inserisci ID mezzo da mettere in manutenzione (0 per annullare): ");
+                        if (int.TryParse(System.Console.ReadLine(), out int mezzoId) && mezzoId > 0)
+                        {
+                            System.Console.Write("Note manutenzione: ");
+                            var note = System.Console.ReadLine() ?? "";
+
+                            var request = new { Note = note };
+                            var jsonContent = JsonSerializer.Serialize(request);
+                            var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
+
+                            var maintenanceResponse = await httpClient.PostAsync($"{API_BASE}/admin/vehicles/{mezzoId}/maintenance", content);
+                            if (maintenanceResponse.IsSuccessStatusCode)
+                            {
+                                System.Console.WriteLine("✅ Mezzo messo in manutenzione con successo!");
+                            }
+                            else
+                            {
+                                var errorContent = await maintenanceResponse.Content.ReadAsStringAsync();
+                                System.Console.WriteLine($"❌ Errore: {errorContent}");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        System.Console.WriteLine("✅ Nessun mezzo disponibile da mettere in manutenzione");
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine($"Errore nel recupero mezzi: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task ShowVehiclesInMaintenance()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== MEZZI IN MANUTENZIONE ===");
+            System.Console.WriteLine();
+
+            try
+            {
+                var response = await httpClient.GetAsync($"{API_BASE}/admin/vehicles/maintenance");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var mezziManutenzione = JsonSerializer.Deserialize<MezzoMaintenanceDto[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    
+                    if (mezziManutenzione != null && mezziManutenzione.Length > 0)
+                    {
+                        System.Console.WriteLine("Mezzi attualmente in manutenzione:");
+                        System.Console.WriteLine();
+
+                        foreach (var mezzo in mezziManutenzione)
+                        {
+                            System.Console.WriteLine($"ID: {mezzo.Id} | {mezzo.Modello} ({mezzo.Tipo})");
+                            System.Console.WriteLine($"Stato: {mezzo.Stato}");
+                            System.Console.WriteLine($"Parcheggio: {mezzo.ParcheggioNome}");
+                            System.Console.WriteLine($"Ultima manutenzione: {mezzo.UltimaManutenzione?.ToString("dd/MM/yyyy") ?? "Mai"}");
+                            if (mezzo.LivelloBatteria.HasValue)
+                            {
+                                System.Console.WriteLine($"Batteria: {mezzo.LivelloBatteria}%");
+                            }
+                            System.Console.WriteLine("───────────────────────────");
+                        }
+                    }
+                    else
+                    {
+                        System.Console.WriteLine("✅ Nessun mezzo attualmente in manutenzione");
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine($"Errore nel recupero mezzi in manutenzione: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
+            }
+
+            await WaitKey();
         }
     }
 
@@ -879,5 +1614,16 @@ namespace SharingMezzi.Client.Console
         public decimal NuovoCredito { get; set; }
         public string? Message { get; set; }
         public string? TransactionId { get; set; }
+    }
+
+    public class MezzoMaintenanceDto
+    {
+        public int Id { get; set; }
+        public string Modello { get; set; } = "";
+        public string Tipo { get; set; } = "";
+        public string Stato { get; set; } = "";
+        public string ParcheggioNome { get; set; } = "";
+        public DateTime? UltimaManutenzione { get; set; }
+        public int? LivelloBatteria { get; set; }
     }
 }

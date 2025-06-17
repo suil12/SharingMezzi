@@ -218,6 +218,373 @@ namespace SharingMezzi.Api.Controllers
                 return StatusCode(500, "Errore interno del server");
             }
         }
+
+        /// <summary>
+        /// Ottieni tutti gli utenti (solo admin)
+        /// </summary>
+        [HttpGet("users")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult<IEnumerable<UtenteDto>>> GetAllUsers()
+        {
+            try
+            {
+                var utenti = await _context.Utenti
+                    .Select(u => new UtenteDto
+                    {
+                        Id = u.Id,
+                        Nome = u.Nome,
+                        Cognome = u.Cognome,
+                        Email = u.Email,
+                        Telefono = u.Telefono,
+                        Ruolo = u.Ruolo.ToString(),
+                        DataRegistrazione = u.DataRegistrazione,
+                        Credito = u.Credito,
+                        PuntiEco = u.PuntiEco,
+                        Stato = u.Stato.ToString(),
+                        DataSospensione = u.DataSospensione,
+                        MotivoSospensione = u.MotivoSospensione
+                    })
+                    .ToListAsync();
+
+                return Ok(utenti);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero utenti");
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        /// <summary>
+        /// Ottieni utenti sospesi (solo admin)
+        /// </summary>
+        [HttpGet("users/suspended")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult<IEnumerable<UtenteDto>>> GetSuspendedUsers()
+        {
+            try
+            {
+                var utentiSospesi = await _context.Utenti
+                    .Where(u => u.Stato == StatoUtente.Sospeso)
+                    .Select(u => new UtenteDto
+                    {
+                        Id = u.Id,
+                        Nome = u.Nome,
+                        Cognome = u.Cognome,
+                        Email = u.Email,
+                        Stato = u.Stato.ToString(),
+                        DataSospensione = u.DataSospensione,
+                        MotivoSospensione = u.MotivoSospensione,
+                        Credito = u.Credito
+                    })
+                    .ToListAsync();
+
+                return Ok(utentiSospesi);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero utenti sospesi");
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        /// <summary>
+        /// Sblocca utente sospeso (solo admin)
+        /// </summary>
+        [HttpPost("users/{userId}/unblock")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult> UnblockUser(int userId, [FromBody] AdminSbloccaUtenteDto request)
+        {
+            try
+            {
+                var utente = await _context.Utenti.FindAsync(userId);
+                if (utente == null)
+                {
+                    return NotFound("Utente non trovato");
+                }
+
+                if (utente.Stato != StatoUtente.Sospeso)
+                {
+                    return BadRequest("L'utente non è sospeso");
+                }
+
+                utente.Stato = StatoUtente.Attivo;
+                utente.DataSospensione = null;
+                utente.MotivoSospensione = null;
+                utente.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Utente {UserId} sbloccato da admin", userId);
+                return Ok(new { message = $"Utente {utente.Nome} {utente.Cognome} sbloccato con successo" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nello sblocco utente {UserId}", userId);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        /// <summary>
+        /// Sospendi utente (solo admin)
+        /// </summary>
+        [HttpPost("users/{userId}/suspend")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult> SuspendUser(int userId, [FromBody] AdminSospendUtenteDto request)
+        {
+            try
+            {
+                var utente = await _context.Utenti.FindAsync(userId);
+                if (utente == null)
+                {
+                    return NotFound("Utente non trovato");
+                }
+
+                if (utente.Ruolo == RuoloUtente.Amministratore)
+                {
+                    return BadRequest("Non è possibile sospendere un amministratore");
+                }
+
+                utente.Stato = StatoUtente.Sospeso;
+                utente.DataSospensione = DateTime.UtcNow;
+                utente.MotivoSospensione = request.Motivo;
+                utente.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Utente {UserId} sospeso da admin per: {Motivo}", userId, request.Motivo);
+                return Ok(new { message = $"Utente {utente.Nome} {utente.Cognome} sospeso con successo" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella sospensione utente {UserId}", userId);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        /// <summary>
+        /// Ripara mezzo in manutenzione (solo admin)
+        /// </summary>
+        [HttpPost("vehicles/{mezzoId}/repair")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult> RepairVehicle(int mezzoId, [FromBody] AdminRiparazioneMezzoDto request)
+        {
+            try
+            {
+                var mezzo = await _context.Mezzi.FindAsync(mezzoId);
+                if (mezzo == null)
+                {
+                    return NotFound("Mezzo non trovato");
+                }
+
+                if (mezzo.Stato != StatoMezzo.Manutenzione && mezzo.Stato != StatoMezzo.Guasto)
+                {
+                    return BadRequest("Il mezzo non è in manutenzione o guasto");
+                }
+
+                // Aggiorna stato mezzo
+                mezzo.Stato = StatoMezzo.Disponibile;
+                mezzo.UltimaManutenzione = DateTime.UtcNow;
+                mezzo.UpdatedAt = DateTime.UtcNow;
+
+                // Chiudi segnalazioni aperte per questo mezzo
+                var segnalazioniAperte = await _context.SegnalazioniManutenzione
+                    .Where(s => s.MezzoId == mezzoId && s.Stato == StatoSegnalazione.Aperta)
+                    .ToListAsync();
+
+                foreach (var segnalazione in segnalazioniAperte)
+                {
+                    segnalazione.Stato = StatoSegnalazione.Completata;
+                    segnalazione.DataRisoluzione = DateTime.UtcNow;
+                    segnalazione.NoteRisoluzione = request.NoteRiparazione;
+                    segnalazione.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Mezzo {MezzoId} riparato da admin", mezzoId);
+                return Ok(new { message = $"Mezzo {mezzo.Modello} riparato con successo" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella riparazione mezzo {MezzoId}", mezzoId);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        /// <summary>
+        /// Crea nuovo parcheggio (solo admin)
+        /// </summary>
+        [HttpPost("parking")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult<ParcheggioDto>> CreateParking([FromBody] CreateParcheggioDto createDto)
+        {
+            try
+            {
+                var parcheggio = new Parcheggio
+                {
+                    Nome = createDto.Nome,
+                    Indirizzo = createDto.Indirizzo,
+                    Capienza = createDto.Capienza,
+                    PostiLiberi = createDto.Capienza,
+                    PostiOccupati = 0,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.Parcheggi.Add(parcheggio);
+                await _context.SaveChangesAsync();
+
+                var parcheggioDto = new ParcheggioDto
+                {
+                    Id = parcheggio.Id,
+                    Nome = parcheggio.Nome,
+                    Indirizzo = parcheggio.Indirizzo,
+                    Capienza = parcheggio.Capienza,
+                    PostiLiberi = parcheggio.PostiLiberi,
+                    PostiOccupati = parcheggio.PostiOccupati
+                };
+
+                _logger.LogInformation("Nuovo parcheggio creato: {Nome}", parcheggio.Nome);
+                return CreatedAtAction(nameof(CreateParking), new { id = parcheggio.Id }, parcheggioDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella creazione parcheggio");
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        /// <summary>
+        /// Crea nuovo mezzo (solo admin)
+        /// </summary>
+        [HttpPost("vehicles")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult<MezzoDto>> CreateVehicle([FromBody] CreateMezzoDto createDto)
+        {
+            try
+            {
+                var mezzo = new Mezzo
+                {
+                    Modello = createDto.Modello,
+                    Tipo = Enum.Parse<TipoMezzo>(createDto.Tipo),
+                    IsElettrico = createDto.IsElettrico,
+                    Stato = StatoMezzo.Disponibile,
+                    LivelloBatteria = createDto.IsElettrico ? 100 : null,
+                    TariffaPerMinuto = createDto.TariffaPerMinuto,
+                    TariffaFissa = createDto.TariffaFissa,
+                    ParcheggioId = createDto.ParcheggioId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.Mezzi.Add(mezzo);
+                await _context.SaveChangesAsync();
+
+                var mezzoDto = new MezzoDto
+                {
+                    Id = mezzo.Id,
+                    Modello = mezzo.Modello,
+                    Tipo = mezzo.Tipo.ToString(),
+                    IsElettrico = mezzo.IsElettrico,
+                    Stato = mezzo.Stato.ToString(),
+                    LivelloBatteria = mezzo.LivelloBatteria,
+                    TariffaPerMinuto = mezzo.TariffaPerMinuto,
+                    TariffaFissa = mezzo.TariffaFissa,
+                    ParcheggioId = mezzo.ParcheggioId
+                };
+
+                _logger.LogInformation("Nuovo mezzo creato: {Modello}", mezzo.Modello);
+                return CreatedAtAction(nameof(CreateVehicle), new { id = mezzo.Id }, mezzoDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella creazione mezzo");
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        /// <summary>
+        /// Metti mezzo in manutenzione (solo admin)
+        /// </summary>
+        [HttpPost("vehicles/{mezzoId}/maintenance")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult> SetVehicleMaintenance(int mezzoId, [FromBody] AdminManutenzioneDto request)
+        {
+            try
+            {
+                var mezzo = await _context.Mezzi.FindAsync(mezzoId);
+                if (mezzo == null)
+                {
+                    return NotFound("Mezzo non trovato");
+                }
+
+                if (mezzo.Stato == StatoMezzo.Occupato)
+                {
+                    return BadRequest("Il mezzo è attualmente in uso e non può essere messo in manutenzione");
+                }
+
+                // Aggiorna stato mezzo
+                mezzo.Stato = StatoMezzo.Manutenzione;
+                mezzo.UpdatedAt = DateTime.UtcNow;
+
+                // Crea segnalazione di manutenzione
+                var segnalazione = new SegnalazioneManutenzione
+                {
+                    MezzoId = mezzoId,
+                    Descrizione = request.Note ?? "Manutenzione programmata da amministratore",
+                    DataSegnalazione = DateTime.UtcNow,
+                    Stato = StatoSegnalazione.Aperta,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.SegnalazioniManutenzione.Add(segnalazione);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Mezzo {MezzoId} messo in manutenzione da admin", mezzoId);
+                return Ok(new { message = $"Mezzo {mezzo.Modello} messo in manutenzione con successo" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel mettere mezzo {MezzoId} in manutenzione", mezzoId);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        /// <summary>
+        /// Ottieni tutti i mezzi in manutenzione (solo admin)
+        /// </summary>
+        [HttpGet("vehicles/maintenance")]
+        [Authorize(Roles = "Amministratore")]
+        public async Task<ActionResult<IEnumerable<MezzoMaintenanceDto>>> GetVehiclesInMaintenance()
+        {
+            try
+            {
+                var mezziManutenzione = await _context.Mezzi
+                    .Where(m => m.Stato == StatoMezzo.Manutenzione || m.Stato == StatoMezzo.Guasto)
+                    .Include(m => m.Parcheggio)
+                    .Select(m => new MezzoMaintenanceDto
+                    {
+                        Id = m.Id,
+                        Modello = m.Modello,
+                        Tipo = m.Tipo.ToString(),
+                        Stato = m.Stato.ToString(),
+                        ParcheggioNome = m.Parcheggio != null ? m.Parcheggio.Nome : "Non assegnato",
+                        UltimaManutenzione = m.UltimaManutenzione,
+                        LivelloBatteria = m.LivelloBatteria
+                    })
+                    .ToListAsync();
+
+                return Ok(mezziManutenzione);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero mezzi in manutenzione");
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
     }
 
     // DTO specifici per Admin
@@ -255,5 +622,36 @@ namespace SharingMezzi.Api.Controllers
     {
         public string? Note { get; set; }
         public DateTime? ScheduledDate { get; set; }
+    }
+
+    public class AdminSbloccaUtenteDto
+    {
+        public string Note { get; set; } = string.Empty;
+    }
+
+    public class AdminSospendUtenteDto
+    {
+        public string Motivo { get; set; } = string.Empty;
+    }
+
+    public class AdminRiparazioneMezzoDto
+    {
+        public string NoteRiparazione { get; set; } = string.Empty;
+    }
+
+    public class AdminManutenzioneDto
+    {
+        public string Note { get; set; } = string.Empty;
+    }
+
+    public class MezzoMaintenanceDto
+    {
+        public int Id { get; set; }
+        public string Modello { get; set; } = string.Empty;
+        public string Tipo { get; set; } = string.Empty;
+        public string Stato { get; set; } = string.Empty;
+        public string ParcheggioNome { get; set; } = string.Empty;
+        public DateTime? UltimaManutenzione { get; set; }
+        public int? LivelloBatteria { get; set; }
     }
 }

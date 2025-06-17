@@ -60,10 +60,10 @@ public class UserStatisticsDto
     public decimal SpesaTotale { get; set; }
     public decimal CreditoAttuale { get; set; }
     public int PuntiEcoTotali { get; set; }
-    public string? MezzoPreferito { get; set; }
-    public string? ParcheggioPreferito { get; set; }
+    public TimeSpan TempoTotaleUtilizzo { get; set; }
+    public string MezzoPreferito { get; set; } = string.Empty;
     public DateTime? UltimaCorsa { get; set; }
-    public double DistanzaTotaleKm { get; set; }
+    public decimal DistanzaTotaleKm { get; set; }
 }
 
 public class AdminUserDto : UtenteDto
@@ -87,4 +87,22 @@ public class RicaricaDto
     public decimal SaldoPrecedente { get; set; }
     public decimal SaldoFinale { get; set; }
     public string? Note { get; set; }
+}
+
+public class AdminRiparazioneMezzoDto
+{
+    public int MezzoId { get; set; }
+    public string NoteRiparazione { get; set; } = string.Empty;
+}
+
+public class AdminSbloccaUtenteDto
+{
+    public int UtenteId { get; set; }
+    public string Note { get; set; } = string.Empty;
+}
+
+public class AdminSospendUtenteDto
+{
+    public int UtenteId { get; set; }
+    public string Motivo { get; set; } = string.Empty;
 }
