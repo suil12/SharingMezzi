@@ -5,6 +5,7 @@ using MQTTnet;
 using MQTTnet.Server;
 using SharingMezzi.Core.DTOs;
 using SharingMezzi.Core.Interfaces.Repositories;
+using SharingMezzi.Core.Interfaces.Services;
 using SharingMezzi.Core.Entities;
 using System.Text;
 using System.Text.Json;
@@ -171,6 +172,10 @@ public class SharingMezziBroker : BackgroundService, IDisposable
 
             var mezzoRepo = scope.ServiceProvider.GetRequiredService<IMezzoRepository>();
             
+            // Ottieni lo stato del mezzo prima dell'aggiornamento
+            var mezzoPreAggiornamento = await mezzoRepo.GetByIdAsync(message.MezzoId.Value);
+            var statoOriginale = mezzoPreAggiornamento?.Stato;
+            
             // Aggiorna livello batteria nel database
             await mezzoRepo.UpdateBatteryLevelAsync(message.MezzoId.Value, message.BatteryLevel.Value);
             
@@ -181,6 +186,18 @@ public class SharingMezziBroker : BackgroundService, IDisposable
             if (message.BatteryLevel < 5)
             {
                 await mezzoRepo.UpdateStatusAsync(message.MezzoId.Value, StatoMezzo.Manutenzione);
+            }
+            
+            // Verifica se lo stato è cambiato e aggiorna il parcheggio
+            var mezzoPostAggiornamento = await mezzoRepo.GetByIdAsync(message.MezzoId.Value);
+            if (mezzoPostAggiornamento != null && 
+                mezzoPostAggiornamento.ParcheggioId.HasValue &&
+                statoOriginale != mezzoPostAggiornamento.Stato)
+            {
+                var parcheggioService = scope.ServiceProvider.GetRequiredService<IParcheggioService>();
+                await parcheggioService.UpdatePostiLiberiAsync(mezzoPostAggiornamento.ParcheggioId.Value);
+                _logger.LogInformation("Updated parking {ParcheggioId} counts after MQTT battery-triggered state change for mezzo {MezzoId}", 
+                    mezzoPostAggiornamento.ParcheggioId.Value, message.MezzoId.Value);
             }
         }
 
@@ -256,6 +273,16 @@ public class SharingMezziBroker : BackgroundService, IDisposable
             {
                 var mezzoRepo = scope.ServiceProvider.GetRequiredService<IMezzoRepository>();
                 await mezzoRepo.UpdateStatusAsync(message.MezzoId.Value, StatoMezzo.Guasto);
+                
+                // Aggiorna contatori parcheggio
+                var mezzo = await mezzoRepo.GetByIdAsync(message.MezzoId.Value);
+                if (mezzo != null && mezzo.ParcheggioId.HasValue)
+                {
+                    var parcheggioService = scope.ServiceProvider.GetRequiredService<IParcheggioService>();
+                    await parcheggioService.UpdatePostiLiberiAsync(mezzo.ParcheggioId.Value);
+                    _logger.LogInformation("Updated parking {ParcheggioId} counts after MQTT error-triggered state change for mezzo {MezzoId}", 
+                        mezzo.ParcheggioId.Value, message.MezzoId.Value);
+                }
             }
         }
 

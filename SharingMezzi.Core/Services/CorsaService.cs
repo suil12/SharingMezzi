@@ -13,7 +13,9 @@ namespace SharingMezzi.Core.Services
     {
         Task SendUnlockCommand(int mezzoId, int? corsaId = null);
         Task SendLockCommand(int mezzoId, int? corsaId = null);
-    }    public class CorsaService : ICorsaService
+    }
+
+    public class CorsaService : ICorsaService
     {
         private readonly IRepository<Corsa> _corsaRepository;
         private readonly IMezzoRepository _mezzoRepository;
@@ -22,6 +24,7 @@ namespace SharingMezzi.Core.Services
         private readonly IRepository<SegnalazioneManutenzione> _segnalazioneRepository;
         private readonly ILogger<CorsaService> _logger;
         private readonly IMqttActuatorService? _mqttActuatorService;
+        private readonly IParcheggioService _parcheggioService;
 
         public CorsaService(
             IRepository<Corsa> corsaRepository,
@@ -30,7 +33,9 @@ namespace SharingMezzi.Core.Services
             IRepository<Parcheggio> parcheggioRepository,
             IRepository<SegnalazioneManutenzione> segnalazioneRepository,
             ILogger<CorsaService> logger,
-            IMqttActuatorService? mqttActuatorService = null)        {
+            IMqttActuatorService? mqttActuatorService,
+            IParcheggioService parcheggioService)
+        {
             _corsaRepository = corsaRepository;
             _mezzoRepository = mezzoRepository;
             _utenteRepository = utenteRepository;
@@ -38,6 +43,7 @@ namespace SharingMezzi.Core.Services
             _segnalazioneRepository = segnalazioneRepository;
             _logger = logger;
             _mqttActuatorService = mqttActuatorService;
+            _parcheggioService = parcheggioService;
         }
 
         public async Task<CorsaDto> IniziaCorsa(IniziaCorsa comando)
@@ -47,20 +53,21 @@ namespace SharingMezzi.Core.Services
             if (mezzo == null || mezzo.Stato != StatoMezzo.Disponibile)
                 throw new InvalidOperationException("Mezzo non disponibile");
 
-            // NUOVO: Verifica utente e credito
+            // Verifica utente e credito
             var utente = await _utenteRepository.GetByIdAsync(comando.UtenteId);
             if (utente == null)
                 throw new InvalidOperationException("Utente non trovato");
                 
             if (utente.Stato != StatoUtente.Attivo)
                 throw new InvalidOperationException($"Utente {utente.Stato}. Contattare l'assistenza.");
-              // Verifica credito minimo (tariffa fissa + costo prima mezz'ora)
-            decimal costoMinimo = mezzo.TariffaFissa + CalculateCostoMinimo(mezzo.TariffaPerMinuto);
+
+            // Verifica credito minimo (tariffa fissa + almeno 10 minuti di utilizzo)
+            decimal costoMinimo = mezzo.TariffaFissa + (10 * mezzo.TariffaPerMinuto);
             if (!utente.HaCreditoSufficiente(costoMinimo))
             {
                 throw new InvalidOperationException(
                     $"Credito insufficiente. Richiesti almeno €{costoMinimo:F2} " +
-                    $"(tariffa fissa €{mezzo.TariffaFissa:F2} + costo minimo prima mezz'ora €{CalculateCostoMinimo(mezzo.TariffaPerMinuto):F2}), " +
+                    $"(tariffa fissa €{mezzo.TariffaFissa:F2} + costo per 10 minuti €{10 * mezzo.TariffaPerMinuto:F2}), " +
                     $"disponibili €{utente.Credito:F2}");
             }
 
@@ -70,7 +77,9 @@ namespace SharingMezzi.Core.Services
                 c.UtenteId == comando.UtenteId && c.Stato == StatoCorsa.InCorso);
             
             if (corsaAttiva != null)
-                throw new InvalidOperationException("Hai già una corsa in corso");            // Crea corsa
+                throw new InvalidOperationException("Hai già una corsa in corso");
+
+            // Crea corsa
             var corsa = new Corsa
             {
                 UtenteId = comando.UtenteId,
@@ -78,13 +87,20 @@ namespace SharingMezzi.Core.Services
                 ParcheggioPartenzaId = mezzo.ParcheggioId ?? 0,
                 Inizio = DateTime.UtcNow,
                 Stato = StatoCorsa.InCorso,
-                DurataMinuti = 0, // Inizializza a 0 per una corsa appena iniziata
-                CostoTotale = 0   // Inizializza a 0 per una corsa appena iniziata
+                DurataMinuti = 0,
+                CostoTotale = 0
             };
 
             corsa = await _corsaRepository.AddAsync(corsa);
-
             await _mezzoRepository.UpdateStatusAsync(comando.MezzoId, StatoMezzo.Occupato);
+
+            // NUOVO: Aggiorna automaticamente il parcheggio di partenza
+            if (mezzo.ParcheggioId.HasValue)
+            {
+                await _parcheggioService.UpdatePostiLiberiAsync(mezzo.ParcheggioId.Value);
+                _logger.LogDebug("Aggiornato parcheggio partenza {ParcheggioId} dopo inizio corsa {CorsaId}", 
+                    mezzo.ParcheggioId.Value, corsa.Id);
+            }
 
             try
             {
@@ -104,11 +120,15 @@ namespace SharingMezzi.Core.Services
             {
                 _logger.LogError(ex, "Failed to send unlock command for Mezzo {MezzoId}, Corsa {CorsaId}", 
                     comando.MezzoId, corsa.Id);
-            }            _logger.LogInformation("Started ride {CorsaId} for user {UserId} with vehicle {MezzoId}", 
+            }
+
+            _logger.LogInformation("Started ride {CorsaId} for user {UserId} with vehicle {MezzoId}", 
                 corsa.Id, comando.UtenteId, comando.MezzoId);
 
             return await MapToDtoWithDetails(corsa);
-        }        public async Task<CorsaDto> TerminaCorsa(int corsaId, TerminaCorsa comando)
+        }
+
+        public async Task<CorsaDto> TerminaCorsa(int corsaId, TerminaCorsa comando)
         {
             var corsa = await _corsaRepository.GetByIdAsync(corsaId);
             if (corsa == null || corsa.Stato != StatoCorsa.InCorso)
@@ -122,7 +142,7 @@ namespace SharingMezzi.Core.Services
             if (mezzo == null)
                 throw new InvalidOperationException("Mezzo non trovato");
 
-            // VALIDAZIONE: Verifica che il parcheggio di destinazione esista
+            // Verifica che il parcheggio di destinazione esista
             var parcheggioDestinazione = await _parcheggioRepository.GetByIdAsync(comando.ParcheggioDestinazioneId);
             if (parcheggioDestinazione == null)
                 throw new InvalidOperationException($"Parcheggio di destinazione con ID {comando.ParcheggioDestinazioneId} non trovato");
@@ -131,24 +151,31 @@ namespace SharingMezzi.Core.Services
             corsa.Fine = DateTime.UtcNow;
             corsa.DurataMinuti = (int)(corsa.Fine.Value - corsa.Inizio).TotalMinutes;
             corsa.ParcheggioDestinazioneId = comando.ParcheggioDestinazioneId;
-            corsa.CostoTotale = await CalcolaCosto(corsaId);// NUOVO: Addebita credito
+            corsa.CostoTotale = await CalcolaCosto(corsaId);
+
+            // Addebita credito
             utente.AddebitaCredito(corsa.CostoTotale);
             
-
+            // Assegna punti eco per bici muscolari
             if (mezzo.Tipo == TipoMezzo.BiciMuscolare)
             {
                 int puntiEco = CalcolaPuntiEco(corsa.DurataMinuti);
                 utente.AggiungiPuntiEco(puntiEco);
+                corsa.PuntiEcoAssegnati = puntiEco;
                 _logger.LogInformation("Assegnati {Punti} punti eco a utente {UserId}", 
                     puntiEco, utente.Id);
+            }
+            else
+            {
+                corsa.PuntiEcoAssegnati = 0;
             }
 
             // Aggiorna entità
             await _utenteRepository.UpdateAsync(utente);
-              corsa.Stato = utente.Credito >= 0 ? StatoCorsa.Completata : StatoCorsa.CompletataConDebito;
+            corsa.Stato = utente.Credito >= 0 ? StatoCorsa.Completata : StatoCorsa.CompletataConDebito;
             await _corsaRepository.UpdateAsync(corsa);
             
-            // NUOVO: Gestione segnalazione manutenzione
+            // Gestione segnalazione manutenzione
             StatoMezzo nuovoStatoMezzo = StatoMezzo.Disponibile;
             
             if (comando.SegnalaManutenzione)
@@ -160,6 +187,17 @@ namespace SharingMezzi.Core.Services
             }
             
             await _mezzoRepository.UpdateStatusAsync(corsa.MezzoId, nuovoStatoMezzo);
+            
+            // NUOVO: Aggiorna il parcheggio di destinazione dopo aver posizionato il mezzo
+            var mezzoAggiornato = await _mezzoRepository.GetByIdAsync(corsa.MezzoId);
+            if (mezzoAggiornato != null)
+            {
+                mezzoAggiornato.ParcheggioId = comando.ParcheggioDestinazioneId;
+                await _mezzoRepository.UpdateAsync(mezzoAggiornato);
+            }
+            await _parcheggioService.UpdatePostiLiberiAsync(comando.ParcheggioDestinazioneId);
+            _logger.LogDebug("Aggiornato parcheggio destinazione {ParcheggioId} dopo fine corsa {CorsaId}", 
+                comando.ParcheggioDestinazioneId, corsaId);
 
             try
             {
@@ -179,11 +217,15 @@ namespace SharingMezzi.Core.Services
             {
                 _logger.LogError(ex, "Failed to send lock command for Mezzo {MezzoId}, Corsa {CorsaId}", 
                     corsa.MezzoId, corsaId);
-            }            _logger.LogInformation("Ended ride {CorsaId}, duration: {Duration} min, cost: €{Cost}, maintenance: {Maintenance}", 
+            }
+
+            _logger.LogInformation("Ended ride {CorsaId}, duration: {Duration} min, cost: €{Cost}, maintenance: {Maintenance}", 
                 corsaId, corsa.DurataMinuti, corsa.CostoTotale, comando.SegnalaManutenzione);
 
             return await MapToDtoWithDetails(corsa);
-        }        public async Task<decimal> CalcolaCosto(int corsaId)
+        }
+
+        public async Task<decimal> CalcolaCosto(int corsaId)
         {
             var corsa = await _corsaRepository.GetByIdAsync(corsaId);
             if (corsa == null) return 0;
@@ -191,40 +233,20 @@ namespace SharingMezzi.Core.Services
             var mezzo = await _mezzoRepository.GetByIdAsync(corsa.MezzoId);
             if (mezzo == null) return 0;
 
-            // Calcolo con tariffa fissa + tariffa per minuti
-            decimal costoFisso = mezzo.TariffaFissa; // Tariffa fissa di attivazione (€1.00)
-            decimal costoVariabile = 0;
-            int minuti = corsa.DurataMinuti;
+            decimal costoFisso = mezzo.TariffaFissa;
+            decimal costoVariabile = corsa.DurataMinuti * mezzo.TariffaPerMinuto;
             
-            if (minuti <= 30)
-            {
-                // Prima mezz'ora: costo fisso ridotto per minuti
-                costoVariabile = CalculateCostoMinimo(mezzo.TariffaPerMinuto);
-            }
-            else
-            {
-                // Oltre mezz'ora: costo minimo prima mezz'ora + tariffa normale per minuti extra
-                costoVariabile = CalculateCostoMinimo(mezzo.TariffaPerMinuto) + 
-                                (minuti - 30) * mezzo.TariffaPerMinuto;
-            }
-
             return costoFisso + costoVariabile;
-        }
-
-        private decimal CalculateCostoMinimo(decimal tariffaPerMinuto)
-        {
-            // Costo fisso prima mezz'ora = 50% della tariffa normale per 30 minuti
-            return (tariffaPerMinuto * 30) * 0.5m;
         }
 
         private int CalcolaPuntiEco(int durataMinuti)
         {
-            // 1 punto eco per ogni minuto di utilizzo bici muscolare
-            // Bonus: +10 punti ogni 30 minuti
             int punti = durataMinuti;
             int bonus = (durataMinuti / 30) * 10;
             return punti + bonus;
-        }        public async Task<IEnumerable<CorsaDto>> GetCorseUtente(int utenteId)
+        }
+
+        public async Task<IEnumerable<CorsaDto>> GetCorseUtente(int utenteId)
         {
             var corse = await _corsaRepository.GetAllAsync();
             var corseUtente = corse.Where(c => c.UtenteId == utenteId).ToList();
@@ -243,27 +265,28 @@ namespace SharingMezzi.Core.Services
             var corse = await _corsaRepository.GetAllAsync();
             var corsaAttiva = corse.FirstOrDefault(c => c.UtenteId == utenteId && c.Stato == StatoCorsa.InCorso);
             return corsaAttiva != null ? await MapToDtoWithDetails(corsaAttiva) : null;
-        }private CorsaDto MapToDto(Corsa corsa)
+        }
+
+        private CorsaDto MapToDto(Corsa corsa)
         {
             return new CorsaDto
             {
                 Id = corsa.Id,
                 UtenteId = corsa.UtenteId,
-                MezzoId = corsa.MezzoId,                ParcheggioPartenzaId = corsa.ParcheggioPartenzaId,
+                MezzoId = corsa.MezzoId,
+                ParcheggioPartenzaId = corsa.ParcheggioPartenzaId,
                 ParcheggioDestinazioneId = corsa.ParcheggioDestinazioneId,
-                Inizio = corsa.Inizio,              
-                Fine = corsa.Fine,               
-                DurataMinuti = corsa.DurataMinuti, 
-                CostoTotale = corsa.CostoTotale,                Stato = corsa.Stato.ToString(),
-                
-                // Informazioni del mezzo (se disponibili tramite navigation property)
+                Inizio = corsa.Inizio,
+                Fine = corsa.Fine,
+                DurataMinuti = corsa.DurataMinuti,
+                CostoTotale = corsa.CostoTotale,
+                Stato = corsa.Stato.ToString(),
                 MezzoModello = corsa.Mezzo?.Modello ?? "N/A",
                 MezzoTipo = corsa.Mezzo?.Tipo.ToString() ?? "N/A",
                 TariffaPerMinuto = corsa.Mezzo?.TariffaPerMinuto ?? 0,
                 TariffaFissa = corsa.Mezzo?.TariffaFissa ?? 1.00m,
                 IsElettrico = corsa.Mezzo?.IsElettrico ?? false,
-                
-                // Informazioni parcheggi
+                PuntiEcoAssegnati = corsa.PuntiEcoAssegnati,
                 NomeParcheggioInizio = corsa.ParcheggioPartenza?.Nome ?? "N/A",
                 NomeParcheggioFine = corsa.ParcheggioDestinazione?.Nome
             };
@@ -271,35 +294,31 @@ namespace SharingMezzi.Core.Services
 
         private async Task<CorsaDto> MapToDtoWithDetails(Corsa corsa)
         {
-            // Carica le informazioni del mezzo se non sono presenti
             var mezzo = corsa.Mezzo ?? await _mezzoRepository.GetByIdAsync(corsa.MezzoId);
             
             return new CorsaDto
             {
                 Id = corsa.Id,
                 UtenteId = corsa.UtenteId,
-                MezzoId = corsa.MezzoId,                ParcheggioPartenzaId = corsa.ParcheggioPartenzaId,
+                MezzoId = corsa.MezzoId,
+                ParcheggioPartenzaId = corsa.ParcheggioPartenzaId,
                 ParcheggioDestinazioneId = corsa.ParcheggioDestinazioneId,
-                Inizio = corsa.Inizio,              
-                Fine = corsa.Fine,               
-                DurataMinuti = corsa.DurataMinuti, 
-                CostoTotale = corsa.CostoTotale,                Stato = corsa.Stato.ToString(),
-                
-                // Informazioni del mezzo caricate dal database
+                Inizio = corsa.Inizio,
+                Fine = corsa.Fine,
+                DurataMinuti = corsa.DurataMinuti,
+                CostoTotale = corsa.CostoTotale,
+                Stato = corsa.Stato.ToString(),
                 MezzoModello = mezzo?.Modello ?? "N/A",
                 MezzoTipo = mezzo?.Tipo.ToString() ?? "N/A", 
                 TariffaPerMinuto = mezzo?.TariffaPerMinuto ?? 0,
                 TariffaFissa = mezzo?.TariffaFissa ?? 1.00m,
                 IsElettrico = mezzo?.IsElettrico ?? false,
-                  // Informazioni parcheggi (se disponibili)
+                PuntiEcoAssegnati = corsa.PuntiEcoAssegnati,
                 NomeParcheggioInizio = corsa.ParcheggioPartenza?.Nome ?? "N/A",
                 NomeParcheggioFine = corsa.ParcheggioDestinazione?.Nome
             };
         }
 
-        /// <summary>
-        /// Crea una segnalazione di manutenzione per il mezzo
-        /// </summary>
         private async Task CreaSegnalazioneManutenzione(Corsa corsa, string? descrizione)
         {
             var segnalazione = new SegnalazioneManutenzione
@@ -314,7 +333,6 @@ namespace SharingMezzi.Core.Services
             };
 
             await _segnalazioneRepository.AddAsync(segnalazione);
-            
             _logger.LogInformation("Created maintenance report {SegnalazioneId} for Mezzo {MezzoId} by User {UserId}", 
                 segnalazione.Id, corsa.MezzoId, corsa.UtenteId);
         }

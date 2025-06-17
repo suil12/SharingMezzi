@@ -95,12 +95,21 @@ namespace SharingMezzi.Core.Services
             if (parcheggio == null) return;
 
             var mezzi = await _mezzoRepository.GetByParcheggioAsync(parcheggioId);
-            var mezziOccupati = mezzi.Count(m => m.Stato != StatoMezzo.Disponibile);
             
-            parcheggio.PostiOccupati = mezziOccupati;
-            parcheggio.PostiLiberi = parcheggio.Capienza - mezziOccupati;
+            // CORREZIONE: Conta solo i mezzi fisicamente presenti nel parcheggio
+            // I mezzi in stato "Occupato" NON sono nel parcheggio (sono in uso nella città)
+            var mezziPresentiNelParcheggio = mezzi.Count(m => 
+                m.Stato == StatoMezzo.Disponibile || 
+                m.Stato == StatoMezzo.Manutenzione || 
+                m.Stato == StatoMezzo.Guasto);
+            
+            parcheggio.PostiOccupati = mezziPresentiNelParcheggio;
+            parcheggio.PostiLiberi = parcheggio.Capienza - mezziPresentiNelParcheggio;
             
             await _parcheggioRepository.UpdateAsync(parcheggio);
+            
+            _logger.LogDebug("Updated parcheggio {ParcheggioId}: {PostiLiberi}/{Capienza} posti liberi, mezzi presenti: {MezziPresenti}", 
+                parcheggioId, parcheggio.PostiLiberi, parcheggio.Capienza, mezziPresentiNelParcheggio);
         }
 
         private static ParcheggioDto MapToDto(Parcheggio parcheggio)

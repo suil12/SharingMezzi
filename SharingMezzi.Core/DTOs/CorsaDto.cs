@@ -23,6 +23,9 @@ namespace SharingMezzi.Core.DTOs
         public decimal? TariffaFissa { get; set; }
         public bool? IsElettrico { get; set; }
         
+        // NUOVO: Punti eco assegnati durante la corsa
+        public int? PuntiEcoAssegnati { get; set; }
+        
         // Alias per compatibilità
         public DateTime DataInizio => Inizio;
         public DateTime? DataFine => Fine;

@@ -9,15 +9,18 @@ namespace SharingMezzi.IoT.Handlers
     public class SensorHandler
     {
         private readonly IMezzoRepository _mezzoRepository;
+        private readonly IParcheggioService _parcheggioService;
         private readonly IMqttService _mqttService;
         private readonly ILogger<SensorHandler> _logger;
 
         public SensorHandler(
             IMezzoRepository mezzoRepository, 
+            IParcheggioService parcheggioService,
             IMqttService mqttService,
             ILogger<SensorHandler> logger)
         {
             _mezzoRepository = mezzoRepository;
+            _parcheggioService = parcheggioService;
             _mqttService = mqttService;
             _logger = logger;
         }
@@ -43,8 +46,23 @@ namespace SharingMezzi.IoT.Handlers
                     _logger.LogInformation("Received parking mezzi update: Mezzo {MezzoId}, Battery {Battery}%, Status {Status}", 
                         message.MezzoId, message.BatteryLevel, message.LockState);
                     
+                    // Ottieni lo stato del mezzo prima dell'aggiornamento
+                    var mezzoPreAggiornamento = await _mezzoRepository.GetByIdAsync(message.MezzoId.Value);
+                    var statoOriginale = mezzoPreAggiornamento?.Stato;
+                    
                     // Aggiorna database
                     await _mezzoRepository.UpdateBatteryLevelAsync(message.MezzoId.Value, message.BatteryLevel.Value);
+                    
+                    // Verifica se lo stato è cambiato e aggiorna il parcheggio
+                    var mezzoPostAggiornamento = await _mezzoRepository.GetByIdAsync(message.MezzoId.Value);
+                    if (mezzoPostAggiornamento != null && 
+                        mezzoPostAggiornamento.ParcheggioId.HasValue &&
+                        statoOriginale != mezzoPostAggiornamento.Stato)
+                    {
+                        await _parcheggioService.UpdatePostiLiberiAsync(mezzoPostAggiornamento.ParcheggioId.Value);
+                        _logger.LogInformation("Updated parking {ParcheggioId} counts after IoT battery-triggered state change for mezzo {MezzoId}", 
+                            mezzoPostAggiornamento.ParcheggioId.Value, message.MezzoId.Value);
+                    }
                     
                     // Logica batteria scarica
                     if (message.BatteryLevel < 20)

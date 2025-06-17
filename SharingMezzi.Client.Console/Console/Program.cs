@@ -105,9 +105,10 @@ namespace SharingMezzi.Client.Console
             System.Console.WriteLine("4. Termina corsa");
             System.Console.WriteLine("5. Storico corse");
             System.Console.WriteLine("6. Ricarica credito");
-            System.Console.WriteLine("7. Test comandi MQTT");
-            System.Console.WriteLine("8. Status sistema");
-            System.Console.WriteLine("9. Profilo utente");
+            System.Console.WriteLine("7. Converti punti eco in credito");
+            System.Console.WriteLine("8. Test comandi MQTT");
+            System.Console.WriteLine("9. Status sistema");
+            System.Console.WriteLine("10. Profilo utente");
             System.Console.WriteLine("0. Logout");
             System.Console.WriteLine();
             System.Console.Write("Scegli un'opzione: ");
@@ -137,12 +138,15 @@ namespace SharingMezzi.Client.Console
                         await RicaricaCredito();
                         break;
                     case "7":
-                        await TestMqttCommands();
+                        await ConvertiPuntiEco();
                         break;
                     case "8":
-                        await StatusSistema();
+                        await TestMqttCommands();
                         break;
                     case "9":
+                        await StatusSistema();
+                        break;
+                    case "10":
                         await ProfiloUtente();
                         break;
                     case "0":
@@ -302,7 +306,7 @@ namespace SharingMezzi.Client.Console
             authToken = null;
             currentUser = null;
             httpClient.DefaultRequestHeaders.Authorization = null;
-            System.Console.WriteLine("👋 Logout effettuato con successo!");
+            System.Console.WriteLine("Logout effettuato con successo!");
             await WaitKey();
         }
 
@@ -375,7 +379,7 @@ namespace SharingMezzi.Client.Console
                 }
                 else
                 {
-                    System.Console.WriteLine("📭 Nessun mezzo disponibile al momento");
+                    System.Console.WriteLine("Nessun mezzo disponibile al momento");
                 }
             }
             catch (Exception ex)
@@ -393,7 +397,7 @@ namespace SharingMezzi.Client.Console
 
         static async Task MostraParcheggi()
         {
-            System.Console.WriteLine("🅿️ === PARCHEGGI === ");
+            System.Console.WriteLine("=== PARCHEGGI === ");
             System.Console.WriteLine();
 
             try
@@ -417,18 +421,18 @@ namespace SharingMezzi.Client.Console
                     foreach (var parcheggio in parcheggi)
                     {
                         var disponibilita = $"{parcheggio.PostiLiberi}/{parcheggio.Capienza}";
-                        var status = parcheggio.PostiLiberi > 0 ? "🟢" : "🔴";
+                        var status = parcheggio.PostiLiberi > 0 ? "[DISPONIBILE]" : "[PIENO]";
                         
                         System.Console.WriteLine($"{status} {parcheggio.Id}. {parcheggio.Nome}");
-                        System.Console.WriteLine($"   📍 {parcheggio.Indirizzo}");
-                        System.Console.WriteLine($"   📊 Posti liberi: {disponibilita}");
+                        System.Console.WriteLine($"   Indirizzo: {parcheggio.Indirizzo}");
+                        System.Console.WriteLine($"   Posti liberi: {disponibilita}");
                         System.Console.WriteLine($"   Mezzi presenti: {parcheggio.Mezzi.Count}");
                         System.Console.WriteLine();
                     }
                 }
                 else
                 {
-                    System.Console.WriteLine("📭 Nessun parcheggio trovato");
+                    System.Console.WriteLine("Nessun parcheggio trovato");
                 }
             }
             catch (Exception ex)
@@ -440,7 +444,7 @@ namespace SharingMezzi.Client.Console
         static async Task IniziaCorsa()
         {
             System.Console.Clear();
-            System.Console.WriteLine("🚀 === INIZIA CORSA === ");
+            System.Console.WriteLine("=== INIZIA CORSA === ");
             System.Console.WriteLine();
 
             try
@@ -471,11 +475,11 @@ namespace SharingMezzi.Client.Console
                     });
 
                     System.Console.WriteLine("Corsa iniziata con successo!");
-                    System.Console.WriteLine($"   🆔 ID Corsa: {corsa?.Id}");
-                    System.Console.WriteLine($"   ⏰ Inizio: {corsa?.Inizio:dd/MM/yyyy HH:mm:ss}");
+                    System.Console.WriteLine($"   ID Corsa: {corsa?.Id}");
+                    System.Console.WriteLine($"   Inizio: {corsa?.Inizio:dd/MM/yyyy HH:mm:ss}");
                     System.Console.WriteLine($"   Mezzo: {mezzoId}");
                     System.Console.WriteLine();
-                    System.Console.WriteLine("🎯 Buon viaggio! Ricorda di terminare la corsa quando arrivi a destinazione.");
+                    System.Console.WriteLine("Buon viaggio! Ricorda di terminare la corsa quando arrivi a destinazione.");
                 }
                 else
                 {
@@ -493,7 +497,7 @@ namespace SharingMezzi.Client.Console
         static async Task TerminaCorsa()
         {
             System.Console.Clear();
-            System.Console.WriteLine("🏁 === TERMINA CORSA === ");
+            System.Console.WriteLine("=== TERMINA CORSA === ");
             System.Console.WriteLine();
 
             try
@@ -501,7 +505,7 @@ namespace SharingMezzi.Client.Console
                 // Mostra corse attive dell'utente
                 await MostraCorsaAttiva();
 
-                System.Console.Write("🆔 Inserisci ID della corsa da terminare: ");
+                System.Console.Write("Inserisci ID della corsa da terminare: ");
                 if (!int.TryParse(System.Console.ReadLine(), out var corsaId))
                 {
                     System.Console.WriteLine("ID corsa non valido");
@@ -512,7 +516,7 @@ namespace SharingMezzi.Client.Console
                 // Mostra parcheggi disponibili
                 await MostraParcheggi();
 
-                System.Console.Write("🅿️ Inserisci ID del parcheggio di destinazione: ");
+                System.Console.Write("Inserisci ID del parcheggio di destinazione: ");
                 if (!int.TryParse(System.Console.ReadLine(), out var parcheggioId))
                 {
                     System.Console.WriteLine("ID parcheggio non valido");
@@ -522,7 +526,7 @@ namespace SharingMezzi.Client.Console
 
                 // Chiedi se vuole segnalare problemi di manutenzione
                 System.Console.WriteLine();
-                System.Console.WriteLine("🔧 === SEGNALAZIONE MANUTENZIONE === ");
+                System.Console.WriteLine("=== SEGNALAZIONE MANUTENZIONE === ");
                 System.Console.Write("Vuoi segnalare problemi di manutenzione per questo mezzo? (s/n): ");
                 var segnalaInput = System.Console.ReadLine()?.ToLower();
                 var segnalaManutenzione = segnalaInput == "s" || segnalaInput == "si" || segnalaInput == "y" || segnalaInput == "yes";
@@ -530,7 +534,7 @@ namespace SharingMezzi.Client.Console
                 string? descrizioneManutenzione = null;
                 if (segnalaManutenzione)
                 {
-                    System.Console.WriteLine("📝 Descrivi il problema riscontrato:");
+                    System.Console.WriteLine("Descrivi il problema riscontrato:");
                     descrizioneManutenzione = System.Console.ReadLine();
                     
                     if (string.IsNullOrEmpty(descrizioneManutenzione))
@@ -562,17 +566,43 @@ namespace SharingMezzi.Client.Console
                     });
 
                     System.Console.WriteLine("Corsa terminata con successo!");
-                    System.Console.WriteLine($"   ⏱️  Durata: {corsa?.DurataMinuti} minuti");
-                    System.Console.WriteLine($"   💰 Costo totale: €{corsa?.CostoTotale:F2}");
+                    System.Console.WriteLine($"   Durata: {corsa?.DurataMinuti} minuti");
+                    System.Console.WriteLine($"   Costo totale: €{corsa?.CostoTotale:F2}");
+                    
+                    // NUOVO: Mostra punti eco guadagnati
+                    if (corsa?.PuntiEcoAssegnati > 0)
+                    {
+                        System.Console.WriteLine($"   Punti Eco guadagnati: {corsa.PuntiEcoAssegnati}");
+                        System.Console.WriteLine("   Hai usato una bici muscolare - ottima scelta ecologica!");
+                        
+                        if (corsa.PuntiEcoAssegnati >= 100)
+                        {
+                            decimal creditoConvertibile = corsa.PuntiEcoAssegnati.Value / 100m;
+                            System.Console.WriteLine($"   Puoi convertire {corsa.PuntiEcoAssegnati} punti in €{creditoConvertibile:F2} di credito!");
+                        }
+                    }
+                    else if (corsa?.MezzoTipo == "BiciMuscolare")
+                    {
+                        System.Console.WriteLine("   Punti Eco: Nessun punto assegnato (corsa troppo breve)");
+                    }
+                    else
+                    {
+                        System.Console.WriteLine("   Mezzo elettrico utilizzato - nessun punto eco assegnato");
+                        System.Console.WriteLine("   Usa bici muscolari per guadagnare punti eco!");
+                    }
                     
                     if (segnalaManutenzione)
                     {
-                        System.Console.WriteLine("   🔧 Segnalazione manutenzione inviata!");
-                        System.Console.WriteLine("   ⚠️  Il mezzo è stato messo in manutenzione");
+                        System.Console.WriteLine("   Segnalazione manutenzione inviata!");
+                        System.Console.WriteLine("   Il mezzo è stato messo in manutenzione");
                     }
 
                     // Aggiorna il credito dell'utente
                     await AggiornaCreditoUtente();
+                    
+                    System.Console.WriteLine();
+                    System.Console.WriteLine($"   Nuovo credito: €{currentUser?.Credito:F2}");
+                    System.Console.WriteLine($"   Punti Eco totali: {currentUser?.PuntiEco}");
                 }
                 else
                 {
@@ -604,15 +634,15 @@ namespace SharingMezzi.Client.Console
                     var corsaAttiva = corse?.FirstOrDefault(c => c.Stato == "InCorso");
                     if (corsaAttiva != null)
                     {
-                        System.Console.WriteLine("🔄 Corsa attiva:");
-                        System.Console.WriteLine($"   🆔 ID: {corsaAttiva.Id}");
+                        System.Console.WriteLine("Corsa attiva:");
+                        System.Console.WriteLine($"   ID: {corsaAttiva.Id}");
                         System.Console.WriteLine($"   Mezzo: {corsaAttiva.MezzoId}");
-                        System.Console.WriteLine($"   ⏰ Inizio: {corsaAttiva.Inizio:dd/MM/yyyy HH:mm:ss}");
+                        System.Console.WriteLine($"   Inizio: {corsaAttiva.Inizio:dd/MM/yyyy HH:mm:ss}");
                         System.Console.WriteLine();
                     }
                     else
                     {
-                        System.Console.WriteLine("ℹ️  Non hai corse attive");
+                        System.Console.WriteLine("Non hai corse attive");
                         System.Console.WriteLine();
                     }
                 }
@@ -626,7 +656,7 @@ namespace SharingMezzi.Client.Console
         static async Task StoricoCorse()
         {
             System.Console.Clear();
-            System.Console.WriteLine("📜 === STORICO CORSE === ");
+            System.Console.WriteLine("=== STORICO CORSE === ");
             System.Console.WriteLine();
 
             try
@@ -664,7 +694,7 @@ namespace SharingMezzi.Client.Console
                 }
                 else
                 {
-                    System.Console.WriteLine("📭 Non hai ancora effettuato corse");
+                    System.Console.WriteLine("Non hai ancora effettuato corse");
                 }
             }
             catch (Exception ex)
@@ -678,15 +708,16 @@ namespace SharingMezzi.Client.Console
         static async Task RicaricaCredito()
         {
             System.Console.Clear();
-            System.Console.WriteLine("💳 === RICARICA CREDITO === ");
+            System.Console.WriteLine("=== RICARICA CREDITO === ");
             System.Console.WriteLine();
-            System.Console.WriteLine($"💰 Credito attuale: €{currentUser?.Credito:F2}");
+            System.Console.WriteLine($"Credito attuale: €{currentUser?.Credito:F2}");
             System.Console.WriteLine();
 
-            System.Console.Write("💵 Inserisci l'importo da ricaricare (€5-€500): ");
-            if (!decimal.TryParse(System.Console.ReadLine(), out var importo) || importo < 5 || importo > 500)
+            System.Console.Write("Inserisci l'importo da ricaricare (€5-€500, es: 10.50 o 10,50): ");
+            var importoInput = System.Console.ReadLine()?.Replace('.', ','); // Normalizza il separatore decimale
+            if (!decimal.TryParse(importoInput, out var importo) || importo < 5 || importo > 500)
             {
-                System.Console.WriteLine("Importo non valido. Deve essere tra €5 e €500");
+                System.Console.WriteLine("Importo non valido. Deve essere tra €5 e €500. Usa formato: 10,50 o 10.50");
                 await WaitKey();
                 return;
             }
@@ -713,13 +744,13 @@ namespace SharingMezzi.Client.Console
                     });
 
                     System.Console.WriteLine($"Ricarica effettuata con successo!");
-                    System.Console.WriteLine($"   💰 Importo ricaricato: €{importo:F2}");
-                    System.Console.WriteLine($"   🆔 Transaction ID: {ricaricaResponse?.TransactionId}");
+                    System.Console.WriteLine($"   Importo ricaricato: €{importo:F2}");
+                    System.Console.WriteLine($"   Transaction ID: {ricaricaResponse?.TransactionId}");
                     
                     // Aggiorna il credito dell'utente
                     await AggiornaCreditoUtente();
                     
-                    System.Console.WriteLine($"   💰 Nuovo credito: €{currentUser?.Credito:F2}");
+                    System.Console.WriteLine($"   Nuovo credito: €{currentUser?.Credito:F2}");
                 }
                 else
                 {
@@ -741,20 +772,169 @@ namespace SharingMezzi.Client.Console
         static async Task ProfiloUtente()
         {
             System.Console.Clear();
-            System.Console.WriteLine("👤 === PROFILO UTENTE === ");
+            System.Console.WriteLine("=== PROFILO UTENTE === ");
             System.Console.WriteLine();
 
-            if (currentUser != null)
+            try
             {
-                System.Console.WriteLine($"🆔 ID: {currentUser.Id}");
-                System.Console.WriteLine($"👤 Nome: {currentUser.Nome}");
-                System.Console.WriteLine($"📧 Email: {currentUser.Email}");
-                System.Console.WriteLine($"💰 Credito: €{currentUser.Credito:F2}");
-                System.Console.WriteLine($"📅 Data registrazione: {currentUser.DataRegistrazione:dd/MM/yyyy}");
+                // Aggiorna informazioni profilo dal server
+                await AggiornaCreditoUtente();
+
+                if (currentUser != null)
+                {
+                    System.Console.WriteLine($"ID: {currentUser.Id}");
+                    System.Console.WriteLine($"Nome: {currentUser.Nome} {currentUser.Cognome}");
+                    System.Console.WriteLine($"Email: {currentUser.Email}");
+                    if (!string.IsNullOrEmpty(currentUser.Telefono))
+                    {
+                        System.Console.WriteLine($"Telefono: {currentUser.Telefono}");
+                    }
+                    System.Console.WriteLine($"Credito: €{currentUser.Credito:F2}");
+                    System.Console.WriteLine($"Punti Eco: {currentUser.PuntiEco}");
+                    System.Console.WriteLine($"Stato: {currentUser.Stato}");
+                    System.Console.WriteLine($"Ruolo: {currentUser.Ruolo}");
+                    System.Console.WriteLine($"Data registrazione: {currentUser.DataRegistrazione:dd/MM/yyyy}");
+                    
+                    if (currentUser.DataSospensione != null)
+                    {
+                        System.Console.WriteLine($"Sospeso dal: {currentUser.DataSospensione:dd/MM/yyyy}");
+                        System.Console.WriteLine($"Motivo: {currentUser.MotivoSospensione}");
+                    }
+
+                    System.Console.WriteLine();
+                    System.Console.WriteLine("Info Punti Eco:");
+                    System.Console.WriteLine("   • 1 punto per ogni minuto di utilizzo bici muscolare");
+                    System.Console.WriteLine("   • +10 punti bonus ogni 30 minuti di utilizzo");
+                    System.Console.WriteLine("   • 100 punti = €1 di credito");
+                    
+                    if (currentUser.PuntiEco >= 100)
+                    {
+                        decimal creditoPossibile = currentUser.PuntiEco / 100m;
+                        System.Console.WriteLine($"   Puoi convertire: {(int)(creditoPossibile * 100)} punti = €{creditoPossibile:F2}");
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine("Informazioni utente non disponibili");
+                }
             }
-            else
+            catch (Exception ex)
             {
-                System.Console.WriteLine("Informazioni utente non disponibili");
+                System.Console.WriteLine($"Errore nel caricamento profilo: {ex.Message}");
+            }
+
+            await WaitKey();
+        }
+
+        static async Task ConvertiPuntiEco()
+        {
+            System.Console.Clear();
+            System.Console.WriteLine("=== CONVERSIONE PUNTI ECO === ");
+            System.Console.WriteLine();
+
+            try
+            {
+                // Aggiorna informazioni utente
+                await AggiornaCreditoUtente();
+
+                if (currentUser?.PuntiEco > 0)
+                {
+                    System.Console.WriteLine($"Punti Eco disponibili: {currentUser.PuntiEco}");
+                    System.Console.WriteLine($"Credito attuale: €{currentUser.Credito:F2}");
+                    System.Console.WriteLine();
+                    System.Console.WriteLine("Tasso di conversione: 100 punti = €1.00");
+                    
+                    if (currentUser.PuntiEco < 100)
+                    {
+                        System.Console.WriteLine("Hai bisogno di almeno 100 punti per la conversione");
+                        System.Console.WriteLine($"   Ti servono ancora {100 - currentUser.PuntiEco} punti");
+                        System.Console.WriteLine();
+                        System.Console.WriteLine("Come guadagnare punti eco:");
+                        System.Console.WriteLine("   • Usa bici muscolari: 1 punto per minuto");
+                        System.Console.WriteLine("   • Bonus: +10 punti ogni 30 minuti");
+                        await WaitKey();
+                        return;
+                    }
+
+                    decimal creditoMassimo = currentUser.PuntiEco / 100m;
+                    int puntiMassimi = (int)(creditoMassimo * 100);
+                    
+                    System.Console.WriteLine($"Puoi convertire: {puntiMassimi} punti = €{creditoMassimo:F2}");
+                    System.Console.WriteLine();
+                    
+                    System.Console.Write("Inserisci il numero di punti da convertire (multipli di 100): ");
+                    if (!int.TryParse(System.Console.ReadLine(), out var puntiDaConvertire) || 
+                        puntiDaConvertire < 100 || 
+                        puntiDaConvertire > currentUser.PuntiEco ||
+                        puntiDaConvertire % 100 != 0)
+                    {
+                        System.Console.WriteLine("Numero di punti non valido!");
+                        System.Console.WriteLine("   Deve essere almeno 100 e multiplo di 100");
+                        await WaitKey();
+                        return;
+                    }
+
+                    decimal creditoDaAggiungere = puntiDaConvertire / 100m;
+                    
+                    System.Console.WriteLine();
+                    System.Console.WriteLine($"Riepilogo conversione:");
+                    System.Console.WriteLine($"   Punti da convertire: {puntiDaConvertire}");
+                    System.Console.WriteLine($"   Credito da aggiungere: €{creditoDaAggiungere:F2}");
+                    System.Console.WriteLine($"   Punti rimanenti: {currentUser.PuntiEco - puntiDaConvertire}");
+                    System.Console.WriteLine($"   Nuovo credito totale: €{currentUser.Credito + creditoDaAggiungere:F2}");
+                    System.Console.WriteLine();
+                    
+                    System.Console.Write("Confermi la conversione? (s/n): ");
+                    var conferma = System.Console.ReadLine()?.ToLower();
+                    
+                    if (conferma != "s" && conferma != "si" && conferma != "y" && conferma != "yes")
+                    {
+                        System.Console.WriteLine("Conversione annullata");
+                        await WaitKey();
+                        return;
+                    }
+
+                    // Chiama l'API per la conversione
+                    var conversioneRequest = new ConvertiPuntiDto { PuntiDaConvertire = puntiDaConvertire };
+                    var json = JsonSerializer.Serialize(conversioneRequest);
+                    var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                    var response = await httpClient.PostAsync($"{API_BASE}/user/converti-punti", content);
+                    var result = await response.Content.ReadAsStringAsync();
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        System.Console.WriteLine("Conversione completata con successo!");
+                        
+                        // Aggiorna i dati dell'utente
+                        await AggiornaCreditoUtente();
+                        
+                        System.Console.WriteLine($"   Punti convertiti: {puntiDaConvertire}");
+                        System.Console.WriteLine($"   Credito aggiunto: €{creditoDaAggiungere:F2}");
+                        System.Console.WriteLine($"   Nuovo credito: €{currentUser?.Credito:F2}");
+                        System.Console.WriteLine($"   Punti rimanenti: {currentUser?.PuntiEco}");
+                    }
+                    else
+                    {
+                        var errorResponse = JsonSerializer.Deserialize<JsonElement>(result);
+                        var errorMessage = errorResponse.TryGetProperty("message", out var messageProp) 
+                            ? messageProp.GetString() 
+                            : "Errore sconosciuto";
+                        System.Console.WriteLine($"Errore nella conversione: {errorMessage}");
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine("Non hai punti eco da convertire");
+                    System.Console.WriteLine();
+                    System.Console.WriteLine("Come guadagnare punti eco:");
+                    System.Console.WriteLine("   • Usa bici muscolari: 1 punto per minuto");
+                    System.Console.WriteLine("   • Bonus: +10 punti ogni 30 minuti");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"Errore: {ex.Message}");
             }
 
             await WaitKey();
@@ -763,13 +943,13 @@ namespace SharingMezzi.Client.Console
         static async Task TestMqttCommands()
         {
             System.Console.Clear();
-            System.Console.WriteLine("📡 === TEST COMANDI MQTT === ");
+            System.Console.WriteLine("=== TEST COMANDI MQTT === ");
             System.Console.WriteLine();
-            System.Console.WriteLine("1. 🔓 Sblocca mezzo");
-            System.Console.WriteLine("2. 🔒 Blocca mezzo");
-            System.Console.WriteLine("3. 💡 Controllo LED slot");
-            System.Console.WriteLine("4. 📊 Status MQTT");
-            System.Console.WriteLine("0. 🔙 Torna al menu");
+            System.Console.WriteLine("1. Sblocca mezzo");
+            System.Console.WriteLine("2. Blocca mezzo");
+            System.Console.WriteLine("3. Controllo LED slot");
+            System.Console.WriteLine("4. Status MQTT");
+            System.Console.WriteLine("0. Torna al menu");
             System.Console.WriteLine();
             System.Console.Write("Scegli un'opzione: ");
 
@@ -800,10 +980,10 @@ namespace SharingMezzi.Client.Console
                         break;
 
                     case "3":
-                        System.Console.Write("🅿️ ID Slot: ");
+                        System.Console.Write("ID Slot: ");
                         if (int.TryParse(System.Console.ReadLine(), out var slotId))
                         {
-                            System.Console.Write("🎨 Colore (green/red/yellow/blue): ");
+                            System.Console.Write("Colore (green/red/yellow/blue): ");
                             var color = System.Console.ReadLine() ?? "green";
 
                             var ledCommand = new { Color = color, Pattern = "solid" };
@@ -818,7 +998,7 @@ namespace SharingMezzi.Client.Console
                     case "4":
                         var statusResponse = await httpClient.GetAsync($"{API_BASE}/mqtt/status");
                         var statusResult = await statusResponse.Content.ReadAsStringAsync();
-                        System.Console.WriteLine($"📡 Status MQTT: {statusResult}");
+                        System.Console.WriteLine($"Status MQTT: {statusResult}");
                         break;
 
                     case "0":
@@ -836,14 +1016,14 @@ namespace SharingMezzi.Client.Console
         static async Task StatusSistema()
         {
             System.Console.Clear();
-            System.Console.WriteLine("📊 === STATUS SISTEMA === ");
+            System.Console.WriteLine("=== STATUS SISTEMA === ");
             System.Console.WriteLine();
 
             try
             {
                 // Test API
                 var apiResponse = await httpClient.GetAsync($"{API_BASE}/mezzi");
-                System.Console.WriteLine($"🌐 API Status: {(apiResponse.IsSuccessStatusCode ? "Connesso" : "Disconnesso")}");
+                System.Console.WriteLine($"API Status: {(apiResponse.IsSuccessStatusCode ? "Connesso" : "Disconnesso")}");
 
                 // Test MQTT
                 try
@@ -852,21 +1032,21 @@ namespace SharingMezzi.Client.Console
                     if (mqttResponse.IsSuccessStatusCode)
                     {
                         var mqttStatus = await mqttResponse.Content.ReadAsStringAsync();
-                        System.Console.WriteLine($"📡 MQTT Status: {mqttStatus}");
+                        System.Console.WriteLine($"MQTT Status: {mqttStatus}");
                     }
                     else
                     {
-                        System.Console.WriteLine("📡 MQTT Status: Non disponibile");
+                        System.Console.WriteLine("MQTT Status: Non disponibile");
                     }
                 }
                 catch
                 {
-                    System.Console.WriteLine("📡 MQTT Status: Errore di connessione");
+                    System.Console.WriteLine("MQTT Status: Errore di connessione");
                 }
 
                 // Statistiche generali
                 System.Console.WriteLine();
-                System.Console.WriteLine("📈 === STATISTICHE === ");
+                System.Console.WriteLine("=== STATISTICHE === ");
 
                 var mezziResponse = await httpClient.GetAsync($"{API_BASE}/mezzi");
                 if (mezziResponse.IsSuccessStatusCode)
@@ -881,10 +1061,10 @@ namespace SharingMezzi.Client.Console
                 {
                     var parcheggwJson = await parcheggiwResponse.Content.ReadAsStringAsync();
                     var parcheggi = JsonSerializer.Deserialize<ParcheggioDto[]>(parcheggwJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    System.Console.WriteLine($"🅿️ Parcheggi totali: {parcheggi?.Length ?? 0}");
+                    System.Console.WriteLine($"Parcheggi totali: {parcheggi?.Length ?? 0}");
                 }
 
-                System.Console.WriteLine($"⏰ Timestamp: {DateTime.Now:dd/MM/yyyy HH:mm:ss}");
+                System.Console.WriteLine($"Timestamp: {DateTime.Now:dd/MM/yyyy HH:mm:ss}");
             }
             catch (Exception ex)
             {
@@ -983,7 +1163,7 @@ namespace SharingMezzi.Client.Console
                     }
                     else
                     {
-                        System.Console.WriteLine("✅ Nessun utente sospeso al momento");
+                        System.Console.WriteLine("Nessun utente sospeso al momento");
                     }
                 }
                 else
@@ -1013,12 +1193,12 @@ namespace SharingMezzi.Client.Console
                 var response = await httpClient.PostAsync($"{API_BASE}/admin/users/{userId}/unblock", content);
                 if (response.IsSuccessStatusCode)
                 {
-                    System.Console.WriteLine("✅ Utente sbloccato con successo!");
+                    System.Console.WriteLine("Utente sbloccato con successo!");
                 }
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    System.Console.WriteLine($"❌ Errore nello sblocco: {errorContent}");
+                    System.Console.WriteLine($"Errore nello sblocco: {errorContent}");
                 }
             }
             catch (Exception ex)
@@ -1068,12 +1248,12 @@ namespace SharingMezzi.Client.Console
                 var response = await httpClient.PostAsync($"{API_BASE}/admin/parking", content);
                 if (response.IsSuccessStatusCode)
                 {
-                    System.Console.WriteLine("✅ Parcheggio creato con successo!");
+                    System.Console.WriteLine("Parcheggio creato con successo!");
                 }
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    System.Console.WriteLine($"❌ Errore nella creazione: {errorContent}");
+                    System.Console.WriteLine($"Errore nella creazione: {errorContent}");
                 }
             }
             catch (Exception ex)
@@ -1131,16 +1311,17 @@ namespace SharingMezzi.Client.Console
                         return;
                 }
 
-                System.Console.Write("Tariffa per minuto (€): ");
-                if (!decimal.TryParse(System.Console.ReadLine(), out decimal tariffaPerMinuto) || tariffaPerMinuto <= 0)
+                System.Console.Write("Tariffa per minuto (€, es: 0.25 o 0,25): ");
+                var tariffaPerMinutoInput = System.Console.ReadLine()?.Replace('.', ','); // Normalizza il separatore decimale
+                if (!decimal.TryParse(tariffaPerMinutoInput, out decimal tariffaPerMinuto) || tariffaPerMinuto <= 0)
                 {
-                    System.Console.WriteLine("Tariffa non valida!");
+                    System.Console.WriteLine("Tariffa non valida! Usa formato: 0,25 o 0.25");
                     await WaitKey();
                     return;
                 }
 
-                System.Console.Write("Tariffa fissa di attivazione (€, default 1.00): ");
-                var tariffaInput = System.Console.ReadLine();
+                System.Console.Write("Tariffa fissa di attivazione (€, default 1.00 - es: 1,50 o 1.50): ");
+                var tariffaInput = System.Console.ReadLine()?.Replace('.', ','); // Normalizza il separatore decimale
                 decimal tariffaFissa = 1.00m;
                 if (!string.IsNullOrWhiteSpace(tariffaInput))
                 {
@@ -1174,12 +1355,12 @@ namespace SharingMezzi.Client.Console
                 var response = await httpClient.PostAsync($"{API_BASE}/admin/vehicles", content);
                 if (response.IsSuccessStatusCode)
                 {
-                    System.Console.WriteLine("✅ Mezzo creato con successo!");
+                    System.Console.WriteLine("Mezzo creato con successo!");
                 }
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    System.Console.WriteLine($"❌ Errore nella creazione: {errorContent}");
+                    System.Console.WriteLine($"Errore nella creazione: {errorContent}");
                 }
             }
             catch (Exception ex)
@@ -1233,18 +1414,18 @@ namespace SharingMezzi.Client.Console
                             var response = await httpClient.PostAsync($"{API_BASE}/admin/vehicles/{mezzoId}/repair", content);
                             if (response.IsSuccessStatusCode)
                             {
-                                System.Console.WriteLine("✅ Mezzo riparato con successo!");
+                                System.Console.WriteLine("Mezzo riparato con successo!");
                             }
                             else
                             {
                                 var errorContent = await response.Content.ReadAsStringAsync();
-                                System.Console.WriteLine($"❌ Errore nella riparazione: {errorContent}");
+                                System.Console.WriteLine($"Errore nella riparazione: {errorContent}");
                             }
                         }
                     }
                     else
                     {
-                        System.Console.WriteLine("✅ Nessun mezzo attualmente in manutenzione");
+                        System.Console.WriteLine("Nessun mezzo attualmente in manutenzione");
                     }
                 }
                 else
@@ -1274,17 +1455,17 @@ namespace SharingMezzi.Client.Console
                     var json = await response.Content.ReadAsStringAsync();
                     var stats = JsonSerializer.Deserialize<JsonElement>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-                    System.Console.WriteLine("📊 === STATISTICHE SISTEMA ===");
+                    System.Console.WriteLine("=== STATISTICHE SISTEMA ===");
                     System.Console.WriteLine();
-                    System.Console.WriteLine($"🚲 Mezzi totali: {stats.GetProperty("totalMezzi").GetInt32()}");
-                    System.Console.WriteLine($"✅ Mezzi disponibili: {stats.GetProperty("mezziDisponibili").GetInt32()}");
-                    System.Console.WriteLine($"🔄 Mezzi in uso: {stats.GetProperty("mezziInUso").GetInt32()}");
-                    System.Console.WriteLine($"🔧 Mezzi in manutenzione: {stats.GetProperty("mezziManutenzione").GetInt32()}");
-                    System.Console.WriteLine($"🅿️ Parcheggi totali: {stats.GetProperty("totalParcheggi").GetInt32()}");
-                    System.Console.WriteLine($"🔋 Mezzi con batteria bassa: {stats.GetProperty("batteriaBassa").GetInt32()}");
-                    System.Console.WriteLine($"🏃 Corse attive: {stats.GetProperty("corseAttive").GetInt32()}");
+                    System.Console.WriteLine($"Mezzi totali: {stats.GetProperty("totalMezzi").GetInt32()}");
+                    System.Console.WriteLine($"Mezzi disponibili: {stats.GetProperty("mezziDisponibili").GetInt32()}");
+                    System.Console.WriteLine($"Mezzi in uso: {stats.GetProperty("mezziInUso").GetInt32()}");
+                    System.Console.WriteLine($"Mezzi in manutenzione: {stats.GetProperty("mezziManutenzione").GetInt32()}");
+                    System.Console.WriteLine($"Parcheggi totali: {stats.GetProperty("totalParcheggi").GetInt32()}");
+                    System.Console.WriteLine($"Mezzi con batteria bassa: {stats.GetProperty("batteriaBassa").GetInt32()}");
+                    System.Console.WriteLine($"Corse attive: {stats.GetProperty("corseAttive").GetInt32()}");
                     System.Console.WriteLine();
-                    System.Console.WriteLine($"⏰ Ultimo aggiornamento: {DateTime.Parse(stats.GetProperty("ultimoAggiornamento").GetString()!):dd/MM/yyyy HH:mm:ss}");
+                    System.Console.WriteLine($"Ultimo aggiornamento: {DateTime.Parse(stats.GetProperty("ultimoAggiornamento").GetString()!):dd/MM/yyyy HH:mm:ss}");
                 }
                 else
                 {
@@ -1318,12 +1499,12 @@ namespace SharingMezzi.Client.Console
                 var response = await httpClient.PostAsync($"{API_BASE}/admin/users/{userId}/suspend", content);
                 if (response.IsSuccessStatusCode)
                 {
-                    System.Console.WriteLine("✅ Utente sospeso con successo!");
+                    System.Console.WriteLine("Utente sospeso con successo!");
                 }
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    System.Console.WriteLine($"❌ Errore nella sospensione: {errorContent}");
+                    System.Console.WriteLine($"Errore nella sospensione: {errorContent}");
                 }
             }
             catch (Exception ex)
@@ -1440,7 +1621,7 @@ namespace SharingMezzi.Client.Console
                     }
                     else
                     {
-                        System.Console.WriteLine("✅ Nessun mezzo disponibile");
+                        System.Console.WriteLine("Nessun mezzo disponibile");
                     }
                 }
                 else
@@ -1499,18 +1680,18 @@ namespace SharingMezzi.Client.Console
                             var maintenanceResponse = await httpClient.PostAsync($"{API_BASE}/admin/vehicles/{mezzoId}/maintenance", content);
                             if (maintenanceResponse.IsSuccessStatusCode)
                             {
-                                System.Console.WriteLine("✅ Mezzo messo in manutenzione con successo!");
+                                System.Console.WriteLine("Mezzo messo in manutenzione con successo!");
                             }
                             else
                             {
                                 var errorContent = await maintenanceResponse.Content.ReadAsStringAsync();
-                                System.Console.WriteLine($"❌ Errore: {errorContent}");
+                                System.Console.WriteLine($"Errore: {errorContent}");
                             }
                         }
                     }
                     else
                     {
-                        System.Console.WriteLine("✅ Nessun mezzo disponibile da mettere in manutenzione");
+                        System.Console.WriteLine("Nessun mezzo disponibile da mettere in manutenzione");
                     }
                 }
                 else
@@ -1560,7 +1741,7 @@ namespace SharingMezzi.Client.Console
                     }
                     else
                     {
-                        System.Console.WriteLine("✅ Nessun mezzo attualmente in manutenzione");
+                        System.Console.WriteLine("Nessun mezzo attualmente in manutenzione");
                     }
                 }
                 else
@@ -1614,6 +1795,11 @@ namespace SharingMezzi.Client.Console
         public decimal NuovoCredito { get; set; }
         public string? Message { get; set; }
         public string? TransactionId { get; set; }
+    }
+
+    public class ConvertiPuntiDto
+    {
+        public int PuntiDaConvertire { get; set; }
     }
 
     public class MezzoMaintenanceDto

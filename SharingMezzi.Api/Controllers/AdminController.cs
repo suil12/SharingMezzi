@@ -208,6 +208,12 @@ namespace SharingMezzi.Api.Controllers
                 _context.SegnalazioniManutenzione.Add(segnalazione);
                 await _context.SaveChangesAsync();
 
+                // Aggiorna contatori parcheggio se il mezzo ha un parcheggio assegnato
+                if (mezzo.ParcheggioId.HasValue)
+                {
+                    await _parcheggioService.UpdatePostiLiberiAsync(mezzo.ParcheggioId.Value);
+                }
+
                 _logger.LogInformation("Manutenzione programmata per mezzo {MezzoId}", mezzoId);
                 
                 return Ok(new { message = $"Manutenzione programmata per mezzo {mezzoId}" });
@@ -402,6 +408,12 @@ namespace SharingMezzi.Api.Controllers
 
                 await _context.SaveChangesAsync();
 
+                // Aggiorna contatori parcheggio se il mezzo ha un parcheggio assegnato
+                if (mezzo.ParcheggioId.HasValue)
+                {
+                    await _parcheggioService.UpdatePostiLiberiAsync(mezzo.ParcheggioId.Value);
+                }
+
                 _logger.LogInformation("Mezzo {MezzoId} riparato da admin", mezzoId);
                 return Ok(new { message = $"Mezzo {mezzo.Modello} riparato con successo" });
             }
@@ -541,6 +553,12 @@ namespace SharingMezzi.Api.Controllers
 
                 _context.SegnalazioniManutenzione.Add(segnalazione);
                 await _context.SaveChangesAsync();
+
+                // Aggiorna contatori parcheggio se il mezzo ha un parcheggio assegnato
+                if (mezzo.ParcheggioId.HasValue)
+                {
+                    await _parcheggioService.UpdatePostiLiberiAsync(mezzo.ParcheggioId.Value);
+                }
 
                 _logger.LogInformation("Mezzo {MezzoId} messo in manutenzione da admin", mezzoId);
                 return Ok(new { message = $"Mezzo {mezzo.Modello} messo in manutenzione con successo" });

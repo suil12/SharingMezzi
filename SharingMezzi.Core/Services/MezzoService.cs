@@ -9,11 +9,13 @@ namespace SharingMezzi.Core.Services
     public class MezzoService : IMezzoService
     {
         private readonly IMezzoRepository _mezzoRepository;
+        private readonly IParcheggioService _parcheggioService;
         private readonly ILogger<MezzoService> _logger;
 
-        public MezzoService(IMezzoRepository mezzoRepository, ILogger<MezzoService> logger)
+        public MezzoService(IMezzoRepository mezzoRepository, IParcheggioService parcheggioService, ILogger<MezzoService> logger)
         {
             _mezzoRepository = mezzoRepository;
+            _parcheggioService = parcheggioService;
             _logger = logger;
         }
 
@@ -67,6 +69,9 @@ namespace SharingMezzi.Core.Services
             if (mezzo == null)
                 throw new ArgumentException($"Mezzo {id} not found");
 
+            var statoOriginale = mezzo.Stato;
+            var parcheggioOriginale = mezzo.ParcheggioId;
+
             mezzo.Modello = mezzoDto.Modello;
             mezzo.TariffaPerMinuto = mezzoDto.TariffaPerMinuto;
             mezzo.ParcheggioId = mezzoDto.ParcheggioId;
@@ -76,6 +81,28 @@ namespace SharingMezzi.Core.Services
                 mezzo.Stato = stato;
 
             mezzo = await _mezzoRepository.UpdateAsync(mezzo);
+            
+            // Aggiorna contatori parcheggi se necessario
+            bool statoChanged = statoOriginale != mezzo.Stato;
+            bool parcheggioChanged = parcheggioOriginale != mezzo.ParcheggioId;
+            
+            if (statoChanged || parcheggioChanged)
+            {
+                // Aggiorna il parcheggio originale se il mezzo è stato spostato
+                if (parcheggioChanged && parcheggioOriginale.HasValue)
+                {
+                    await _parcheggioService.UpdatePostiLiberiAsync(parcheggioOriginale.Value);
+                }
+                
+                // Aggiorna il parcheggio attuale
+                if (mezzo.ParcheggioId.HasValue)
+                {
+                    await _parcheggioService.UpdatePostiLiberiAsync(mezzo.ParcheggioId.Value);
+                }
+                
+                _logger.LogInformation("Updated parking counts after mezzo {MezzoId} modification", id);
+            }
+            
             return MapToDto(mezzo);
         }
 
@@ -87,7 +114,23 @@ namespace SharingMezzi.Core.Services
 
         public async Task UpdateBatteryAsync(int mezzoId, int batteryLevel)
         {
+            // Ottieni lo stato del mezzo prima dell'aggiornamento
+            var mezzoPreAggiornamento = await _mezzoRepository.GetByIdAsync(mezzoId);
+            var statoOriginale = mezzoPreAggiornamento?.Stato;
+            
             await _mezzoRepository.UpdateBatteryLevelAsync(mezzoId, batteryLevel);
+            
+            // Verifica se lo stato è cambiato e aggiorna il parcheggio se necessario
+            var mezzoPostAggiornamento = await _mezzoRepository.GetByIdAsync(mezzoId);
+            if (mezzoPostAggiornamento != null && 
+                mezzoPostAggiornamento.ParcheggioId.HasValue &&
+                statoOriginale != mezzoPostAggiornamento.Stato)
+            {
+                await _parcheggioService.UpdatePostiLiberiAsync(mezzoPostAggiornamento.ParcheggioId.Value);
+                _logger.LogInformation("Updated parking {ParcheggioId} counts after battery-triggered state change for mezzo {MezzoId}: {StatoOriginale} -> {NuovoStato}", 
+                    mezzoPostAggiornamento.ParcheggioId.Value, mezzoId, statoOriginale, mezzoPostAggiornamento.Stato);
+            }
+            
             _logger.LogDebug("Updated battery for mezzo {MezzoId}: {BatteryLevel}%", mezzoId, batteryLevel);
         }
 
