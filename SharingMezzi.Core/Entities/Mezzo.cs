@@ -24,5 +24,6 @@ namespace SharingMezzi.Core.Entities
         
         public ICollection<Corsa> Corse { get; set; } = new List<Corsa>();
         public ICollection<SensoreBatteria> SensoriBatteria { get; set; } = new List<SensoreBatteria>();
+        public ICollection<AttuatoreSblocco> AttuatoriSblocco { get; set; } = new List<AttuatoreSblocco>();
     }
 }
