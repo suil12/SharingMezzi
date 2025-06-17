@@ -67,19 +67,13 @@ dotnet run
 - Admin Dashboard: `https://localhost:5000/admin`
 
 
-### 2. Avvio Simulazione IoT
-```bash
-cd SharingMezzi.IoT
-dotnet run
-```
-
-### 3. Client Console per Test
+### 2. Client Console per Test
 ```bash
 cd SharingMezzi.Client.Console
 dotnet run
 ```
 
-### 4. Build Completo
+### 3. Build Completo
 ```bash
 dotnet build SharingMezzi.sln
 ```
